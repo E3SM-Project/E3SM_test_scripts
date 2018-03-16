@@ -1,6 +1,6 @@
 
 source /projects/sems/modulefiles/utils/sems-modules-init.sh
-module load sems-env sems-python/2.7.9 sems-git
+module load sems-env sems-python/2.7.9 sems-git sems-pylint
 
 export PATH=/projects/ccsm/perl-5.10.1/bin:$PATH
 
