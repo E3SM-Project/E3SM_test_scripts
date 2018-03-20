@@ -13,6 +13,8 @@ git fetch
 git reset --hard origin/next
 git submodule update --init
 
+set +e
+
 $RUNSCRIPT --scratch-root=$PROJWORK/cli115/$USER -j 4 -t acme_prod
 $RUNSCRIPT --scratch-root=$PROJWORK/cli115/$USER -j 4
 
