@@ -7,7 +7,7 @@ source $SCRIPTROOT/util/setup_common.sh
 
 cd $E3SMREPO
 /bin/rm -rf cime
-git clone https://github.com/ESMCI/cime.git
+git clone git@github.com:ESMCI/cime.git
 
 /bin/rm -rf /lcrc/group/acme/acmetest/acme_scratch/*cime_test*
 
