@@ -16,6 +16,6 @@ git submodule update --init
 set +e
 
 $RUNSCRIPT --scratch-root=$PROJWORK/cli115/$USER -j 4 -t e3sm_prod
-$RUNSCRIPT --scratch-root=$PROJWORK/cli115/$USER -j 4
+$RUNSCRIPT --scratch-root=$PROJWORK/cli115/$USER -j 4 -O master --baseline-compare=yes
 
 chmod a+rX -R $PROJWORK/cli115/$USER
