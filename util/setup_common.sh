@@ -1,5 +1,5 @@
 umask 002
-export E3SMREPO=$SCRIPTROOT/../ACME
+export E3SMREPO=$SCRIPTROOT/../${FORCE_REPO_PATH:-ACME}
 export CIME_MODEL=e3sm
 if [ -z "$DEBUG" ]; then
     export RUNSCRIPT=$E3SMREPO/cime/scripts/Tools/jenkins_script
