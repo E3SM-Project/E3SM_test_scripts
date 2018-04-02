@@ -26,7 +26,6 @@ project(runE3smScriptTest ${LANG} NONE)
 ENABLE_TESTING()
 INCLUDE(CTest)
 
-site_name($ENV{CIME_MACHINE})
 # Get absolute path to dir where run_e3sm resides
 set(RUN_E3SM_DIR $ENV{E3SMREPO} CACHE PATH "Path to run_e3sm script")
 
