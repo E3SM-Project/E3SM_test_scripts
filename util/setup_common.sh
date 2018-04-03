@@ -8,6 +8,9 @@ else
 fi
 chmod -R a+rX $E3SMREPO
 
+# Clear stale pyc files
+/bin/rm $(find $E3SMREPO -name "*.pyc")
+
 machine_custom_setup=$SCRIPTROOT/util/${CIME_MACHINE}_setup.sh
 if [ -e $machine_custom_setup ]; then
     source $machine_custom_setup
