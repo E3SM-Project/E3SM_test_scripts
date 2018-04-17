@@ -3,7 +3,6 @@
 # boiler: every script must have these three lines
 export SCRIPTROOT=$( cd "$( dirname "${BASH_SOURCE[0]}" )" && cd .. && pwd )
 export CIME_MACHINE=theta
-export FORCE_REPO_PATH=../ACME-theta
 source $SCRIPTROOT/util/setup_common.sh
 
 cd $FORCE_REPO_PATH
