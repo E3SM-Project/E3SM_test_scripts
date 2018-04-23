@@ -7,4 +7,4 @@ source $SCRIPTROOT/util/setup_common.sh
 
 git config --global http.proxy $http_proxy
 
-source $SCRIPTROOT/util/run_acme_test.sh
+source $SCRIPTROOT/util/run_e3sm_test.sh

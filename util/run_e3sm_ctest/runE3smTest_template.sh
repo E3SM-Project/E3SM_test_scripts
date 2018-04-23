@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/bash -xle
 # Script to test run_e3sm.template.csh
 #   Absolute path to RUN_E3SM_DIR is supplied by CMake configuration
 #   Includes Batch-system specific method for checking queue
@@ -73,7 +73,7 @@ elif [ "$batchsystem" == "pbs" ]; then
     do sleep 5
   done
 
-elif [ "$batchsystem" == "slurm" ]; then
+elif [[ "$batchsystem" == *"slurm"* ]]; then
   echo "BATCH_SYSTEM = slurm ; Waiting for batch job to finish"
   while [ `squeue -j ${jobid} | wc -l` -eq 2 ]
     do sleep 5
