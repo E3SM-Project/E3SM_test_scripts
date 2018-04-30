@@ -24,7 +24,10 @@ fi
 chmod -R a+rX $E3SMREPO || echo "Some chmods failed"
 
 # Clear stale pyc files
-/bin/rm $(find $E3SMREPO -name "*.pyc") || echo "Some pyc removals failed"
+PYC_CACHES=$(find $E3SMREPO -name "*.pyc")
+if [[ ! -z "$PYC_CACHES" ]]; then
+   /bin/rm $PYC_CACHES || echo "Some pyc removals failed"
+fi
 
 machine_custom_setup=$SCRIPTROOT/util/${CIME_MACHINE}_setup.sh
 if [ -e $machine_custom_setup ]; then
