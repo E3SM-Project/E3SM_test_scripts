@@ -6,3 +6,5 @@ export CIME_MACHINE=anvil
 source $SCRIPTROOT/util/setup_common.sh
 
 $RUNSCRIPT -j 4
+
+source $SCRIPTROOT/util/anvil_postrun.sh

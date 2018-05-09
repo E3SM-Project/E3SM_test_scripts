@@ -6,3 +6,5 @@ export CIME_MACHINE=anvil
 source $SCRIPTROOT/util/setup_common.sh
 
 $RUNSCRIPT -j 4 -t e3sm_prod -O master --baseline-compare=yes
+
+source $SCRIPTROOT/util/anvil_postrun.sh
