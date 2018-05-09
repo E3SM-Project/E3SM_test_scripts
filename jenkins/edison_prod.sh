@@ -9,4 +9,4 @@ cd ACME
 git submodule update --init
 cd -
 
-$RUNSCRIPT -j 4 -t e3sm_prod -O master --baseline-compare=yes
+$RUNSCRIPT -j 4 -t e3sm_prod --baseline-compare=yes
