@@ -7,4 +7,4 @@ source $SCRIPTROOT/util/setup_common.sh
 
 cd $E3SMREPO && git submodule update --init
 cd -
-$RUNSCRIPT -j 2 -t e3sm_prod -O master --baseline-compare=yes
+$RUNSCRIPT -j 2 -t e3sm_prod --baseline-compare=yes
