@@ -10,6 +10,6 @@ source $SCRIPTROOT/util/setup_common.sh
 module unload python/2.7-anaconda-5.2
 
 # Get e3sm_simple conda env
-source /global/project/projectdirs/acme/software/anaconda_envs/load_latest_e3sm_simple.sh
+source /global/project/projectdirs/acme/software/anaconda_envs/load_latest_cime_env.sh
 
 $RUNSCRIPT -j 2 -t e3sm_atm_nbfb -O master --baseline-compare=yes
