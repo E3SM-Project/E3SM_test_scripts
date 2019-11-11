@@ -6,3 +6,4 @@ export MODULEPATH=$MODULEPATH:/software/centos7/spack-latest/share/spack/lmod/li
 
 module load intel/17.0.0-pwabdn2 cmake/3.14.2-gvwazz3 git/2.13.0
 
+export TERM=xterm
