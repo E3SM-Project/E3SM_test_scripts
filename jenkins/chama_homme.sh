@@ -1,4 +1,3 @@
-
 #!/bin/bash -xle
 
 # boiler: every script must have these three lines
