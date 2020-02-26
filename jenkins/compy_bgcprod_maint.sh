@@ -8,7 +8,7 @@ source $SCRIPTROOT/util/setup_common.sh
 
 # deactivate cime_env for python 2
 conda deactivate
-module load python/2.7-anaconda-5.2
+module load python/2.7.9
 
 $RUNSCRIPT --compiler pgi --baseline-compare=yes -t e3sm_bgcprod
 
