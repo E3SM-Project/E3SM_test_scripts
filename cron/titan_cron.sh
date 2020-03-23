@@ -11,7 +11,7 @@ cd ACME
 git checkout next
 git fetch
 git reset --hard origin/next
-git submodule update --init
+git submodule update --init --recursive
 
 set +e
 

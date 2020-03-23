@@ -10,6 +10,6 @@ conda deactivate
 module load python/2.7-anaconda-5.2
 
 
-cd $E3SMREPO && git submodule update --init
+cd $E3SMREPO && git submodule update --init --recursive
 cd -
 $RUNSCRIPT -j 2 -t e3sm_prod --baseline-compare=yes
