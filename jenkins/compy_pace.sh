@@ -5,7 +5,7 @@
 # boiler: every script must have these three lines
 export SCRIPTROOT=$( cd "$( dirname "${BASH_SOURCE[0]}" )" && cd .. && pwd )
 export CIME_MACHINE=compy
-source $SCRIPTROOT/util/setup_common.sh
+#source $SCRIPTROOT/util/setup_common.sh
 
 # Performance archive directory on this platform
 PERF_ARCHIVE_DIR=/compyfs/performance_archive
@@ -48,19 +48,19 @@ then
 fi 
 
 curdate=$(date '+%Y_%m_%d')
-perl e3sm_perf_archive.perl > e3sm_perf_archive_compy_${curdate}_out.txt
-mv e3sm_perf_archive_compy_${curdate}_out.txt performance_archive_compy_all_${curdate}
-./pace-upload --perf-archive ./performance_archive_compy_all_${curdate}
+perl e3sm_perf_archive.perl > e3sm_perf_archive_${CIME_MACHINE}_${curdate}_out.txt
+mv e3sm_perf_archive_${CIME_MACHINE}_${curdate}_out.txt performance_archive_${CIME_MACHINE}_all_${curdate}
+./pace-upload --perf-archive ./performance_archive_${CIME_MACHINE}_all_${curdate}
 if [ $? -ne 0 ]
 then
   echo "Error: pace-upload failed. Check log."
   exit 4
 fi 
-mv pace-*.log performance_archive_compy_all_${curdate}
-tar zcf performance_archive_compy_all_${curdate}.tar.gz performance_archive_compy_all_${curdate}
+mv pace-*.log performance_archive_${CIME_MACHINE}_all_${curdate}
+tar zcf performance_archive_${CIME_MACHINE}_all_${curdate}.tar.gz performance_archive_${CIME_MACHINE}_all_${curdate}
 
 # Move processed exps into old perf data archive
 curmonth=$(date '+%Y-%m')
 mkdir -p ${OLD_PERF_ARCHIVE_DIR}/${curmonth}
-mv performance_archive_compy_all_${curdate}* ${OLD_PERF_ARCHIVE_DIR}/${curmonth}
+mv performance_archive_${CIME_MACHINE}_all_${curdate}* ${OLD_PERF_ARCHIVE_DIR}/${curmonth}
 
