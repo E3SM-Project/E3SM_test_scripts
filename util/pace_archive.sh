@@ -1,6 +1,9 @@
 # Purpose: Automate performance data upload to PACE
 # Author: Sarat Sreepathi (sarat@ornl.gov)
 
+# Allow group write permission for any files generated
+umask 002 
+
 # The performance archive directory on the platform is the working dir
 cd ${PERF_ARCHIVE_DIR}
 
