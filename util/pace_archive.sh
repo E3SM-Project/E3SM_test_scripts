@@ -28,11 +28,7 @@ curdate=$(date '+%Y_%m_%d')
 perl e3sm_perf_archive.perl > e3sm_perf_archive_${CIME_MACHINE}_${curdate}_out.txt
 mv e3sm_perf_archive_${CIME_MACHINE}_${curdate}_out.txt performance_archive_${CIME_MACHINE}_all_${curdate}
 ./pace-upload --perf-archive ./performance_archive_${CIME_MACHINE}_all_${curdate}
-if [ $? -ne 0 ]
-then
-  echo "Error: pace-upload failed. Check log."
-  exit 4
-fi 
+
 mv pace-*.log performance_archive_${CIME_MACHINE}_all_${curdate}
 tar zcf performance_archive_${CIME_MACHINE}_all_${curdate}.tar.gz performance_archive_${CIME_MACHINE}_all_${curdate}
 
