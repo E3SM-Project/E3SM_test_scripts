@@ -5,10 +5,15 @@
 cd ${PERF_ARCHIVE_DIR}
 
 # Download PACE upload script
-# Python2 version (supported by system Python without requiring module load)
-wget -O pace-upload https://pace.ornl.gov/static/tools/pace-upload
-# Python3 version (requires Anaconda/Python module with requests package)
-#wget -O pace-upload https://pace.ornl.gov/static/tools/pace-upload3
+if [[ -z "${PACE_PYTHON3}" ]] ; then
+	# Python2 version (supported by system Python without requiring module load)
+	echo "PACE Python 2"
+	wget -O pace-upload https://pace.ornl.gov/static/tools/pace-upload
+else
+	# Python3 version (requires Anaconda/Python module with requests package)
+	echo "PACE Python 3"
+	wget -O pace-upload https://pace.ornl.gov/static/tools/pace-upload3
+fi
 
 chmod +x pace-upload
 
