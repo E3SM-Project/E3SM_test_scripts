@@ -32,7 +32,11 @@ perl e3sm_perf_archive.perl > e3sm_perf_archive_${CIME_MACHINE}_${curdate}_out.t
 mv e3sm_perf_archive_${CIME_MACHINE}_${curdate}_out.txt performance_archive_${CIME_MACHINE}_all_${curdate}
 ./pace-upload --perf-archive ./performance_archive_${CIME_MACHINE}_all_${curdate}
 
-mv pace-*.log performance_archive_${CIME_MACHINE}_all_${curdate}
+if stat -t pace-*.log >/dev/null 2>&1
+then
+	mv pace-*.log performance_archive_${CIME_MACHINE}_all_${curdate}
+fi
+
 tar zcf performance_archive_${CIME_MACHINE}_all_${curdate}.tar.gz performance_archive_${CIME_MACHINE}_all_${curdate}
 
 # Move processed exps into old perf data archive
