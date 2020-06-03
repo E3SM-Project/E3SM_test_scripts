@@ -11,6 +11,8 @@ export CIME_MACHINE=cori
 PERF_ARCHIVE_DIR=/global/cfs/cdirs/e3sm/performance_archive
 # Archives of old performance data on this platform
 export OLD_PERF_ARCHIVE_DIR=${PERF_ARCHIVE_DIR}/../OLD_PERF
+# Following tag is used by the Perl script in naming the perf. archive directory
+export PROJ_SPACE_TAG=e3sm
 
 export PACE_PYTHON3=1
 source $SCRIPTROOT/util/pace_archive.sh
