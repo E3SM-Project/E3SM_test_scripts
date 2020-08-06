@@ -1,8 +1,9 @@
 
 cd $SCRIPTROOT/..
 
-/bin/rm -rf E3SM/cime
-mv cime E3SM/cime
+cd E3SM/cime
+git reset --hard origin/master
+cd -
 
 /bin/rm -rf build
 mkdir build
