@@ -5,4 +5,4 @@ export SCRIPTROOT=$( cd "$( dirname "${BASH_SOURCE[0]}" )" && cd .. && pwd )
 export CIME_MACHINE=mappy
 source $SCRIPTROOT/util/setup_common.sh
 
-$RUNSCRIPT -j 2 -t e3sm_scream
+$RUNSCRIPT -t e3sm_scream
