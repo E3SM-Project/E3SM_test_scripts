@@ -5,6 +5,6 @@ export SCRIPTROOT=$( cd "$( dirname "${BASH_SOURCE[0]}" )" && cd .. && pwd )
 export CIME_MACHINE=compy
 source $SCRIPTROOT/util/setup_common.sh
 
-$RUNSCRIPT --compiler pgi -O master --baseline-compare=yes
+$RUNSCRIPT --compiler pgi -O master --baseline-compare=yes -t e3sm_developer
 
 chmod -R g+rwX /compyfs/$USER/e3sm_scratch
