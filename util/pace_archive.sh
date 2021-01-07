@@ -30,8 +30,8 @@ find . -size +50M -exec ls -lh {} \; > large-files-removed.txt
 find . -size +50M -exec rm {} \;
 
 wget -O e3sm_perf_archive.perl https://pace.ornl.gov/static/tools/e3sm_perf_archive.perl
-curdate=$(date '+%Y_%m_%d')
-perl e3sm_perf_archive.perl > e3sm_perf_archive_${CIME_MACHINE}_${curdate}_out.txt
+curdate=$(date '+%Y_%m_%d_%H_%M_%S')
+perl e3sm_perf_archive.perl --timestamp ${curdate} > e3sm_perf_archive_${CIME_MACHINE}_${curdate}_out.txt
 mv e3sm_perf_archive_${CIME_MACHINE}_${curdate}_out.txt performance_archive_${CIME_MACHINE}_${PROJ_SPACE_TAG}_${curdate}
 ./pace-upload --perf-archive ./performance_archive_${CIME_MACHINE}_${PROJ_SPACE_TAG}_${curdate}
 
