@@ -10,7 +10,7 @@ if [[ $GIT_BRANCH == *master* ]]; then
 else
     module load sems-python/3.5.2
 fi
-module load sems-pylint
+module load sems-pylint/1.5.4/base
 
 export PATH=/projects/ccsm/perl-5.10.1/bin:$PATH
 
