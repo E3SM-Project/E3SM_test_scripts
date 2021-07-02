@@ -6,6 +6,7 @@ cd E3SM
 # that are already up-to-date, so origin may not have recent CIME
 # changes. We need to fetch here and use https since we can't be
 # certain of the ssh key situation.
+/bin/rm -rf cime
 git clone https://github.com/ESMCI/cime.git
 cd -
 
