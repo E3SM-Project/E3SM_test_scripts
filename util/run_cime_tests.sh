@@ -7,7 +7,8 @@ cd E3SM/cime
 # changes. We need to fetch here and use https since we can't be
 # certain of the ssh key situation.
 git remote set-url origin https://github.com/ESMCI/cime.git
-git fetch
+git remote -v
+git fetch origin
 git reset --hard origin/master
 cd -
 
