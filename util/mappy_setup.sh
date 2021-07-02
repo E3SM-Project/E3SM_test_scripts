@@ -5,7 +5,7 @@ fi
 
 # We only need cmake here because mappy run cime standalone tests which
 # do not load the CIME env before running cmake
-module load sems-git sems-cmake/3.19.1 sems-python/3.5.2 sems-pylint
+module load sems-git/2.10.1 sems-cmake/3.19.1 sems-python/3.5.2 sems-pylint
 
 export http_proxy=http://proxy.sandia.gov:80
 export RSYNC_PROXY=proxy.sandia.gov:80
