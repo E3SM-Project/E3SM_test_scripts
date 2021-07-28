@@ -5,4 +5,4 @@ export SCRIPTROOT=$( cd "$( dirname "${BASH_SOURCE[0]}" )" && cd .. && pwd )
 export CIME_MACHINE=sandiatoss3
 source $SCRIPTROOT/util/setup_common.sh
 
-$RUNSCRIPT -t homme_integration
+$RUNSCRIPT -t homme_integration --baseline-compare
