@@ -1,7 +1,5 @@
 
-if [ -z "$SEMS_MODULEFILES_ROOT" ]; then
-    source /projects/sems/modulefiles/utils/sems-modules-init.sh
-fi
+source /projects/sems/modulefiles/utils/sems-archive-modules-init.sh
 
 module load sems-git
 

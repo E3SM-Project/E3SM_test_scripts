@@ -1,7 +1,5 @@
 
-if [ -z "$SEMS_MODULEFILES_ROOT" ]; then
-    source /projects/sems/modulefiles/utils/sems-modules-init.sh
-fi
+source /projects/sems/modulefiles/utils/sems-archive-modules-init.sh
 
 # We only need cmake here because mappy run cime standalone tests which
 # do not load the CIME env before running cmake
