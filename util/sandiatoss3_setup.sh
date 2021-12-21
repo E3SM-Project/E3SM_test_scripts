@@ -1,7 +1,8 @@
 
 source /projects/sems/modulefiles/utils/sems-archive-modules-init.sh
 
-module load sems-git
+module purge
+module load sems-env sems-git/2.10.1
 
 export PATH=/ascldap/users/jgfouca/packages/Python-3.8.5/bin:$PATH
 export PATH=/projects/ccsm/perl-5.10.1/bin:$PATH
