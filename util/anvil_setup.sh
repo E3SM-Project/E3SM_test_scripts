@@ -5,6 +5,6 @@ source /home/software/spack-0.10.1/opt/spack/linux-centos7-x86_64/gcc-4.8.5/lmod
 
 export MODULEPATH=$MODULEPATH:/software/centos7/spack-latest/share/spack/lmod/linux-centos7-x86_64/Core
 export TERM=xterm
-export PROJECT=e3sm
+export PROJECT=condo
 
 module load cmake/3.14.2-gvwazz3
