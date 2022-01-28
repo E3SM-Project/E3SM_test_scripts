@@ -5,4 +5,4 @@ export SCRIPTROOT=$( cd "$( dirname "${BASH_SOURCE[0]}" )" && cd .. && pwd )
 export CIME_MACHINE=ascent
 source $SCRIPTROOT/util/setup_common.sh
 
-$RUNSCRIPT -j 4 -t e3sm_gpuacc $1
+$RUNSCRIPT -j 4 -t e3sm_gpuacc $1 || exit 0
