@@ -16,10 +16,17 @@ else
 fi
 
 export CIME_MODEL=e3sm
-if [ -z "$DEBUG" ]; then
-  export RUNSCRIPT=$E3SMREPO/cime/scripts/Tools/jenkins_script
+
+if [ -f $E3SMREPO/cime/CIME/Tools/jenkins_script ]; then
+  PATH_TO_JENKINS=$E3SMREPO/cime/CIME/Tools/jenkins_script
 else
-  export RUNSCRIPT="echo $E3SMREPO/cime/scripts/Tools/jenkins_script"
+  PATH_TO_JENKINS=$E3SMREPO/cime/scripts/Tools/jenkins_script
+fi
+
+if [ -z "$DEBUG" ]; then
+  export RUNSCRIPT=$PATH_TO_JENKINS
+else
+  export RUNSCRIPT="echo $PATH_TO_JENKINS"
 fi
 chmod -R a+rX $E3SMREPO || echo "Some chmods failed"
 
