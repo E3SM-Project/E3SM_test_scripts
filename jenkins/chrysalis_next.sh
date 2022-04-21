@@ -5,6 +5,8 @@ export SCRIPTROOT=$( cd "$( dirname "${BASH_SOURCE[0]}" )" && cd .. && pwd )
 export CIME_MACHINE=chrysalis
 source $SCRIPTROOT/util/setup_common.sh
 
+source $SCRIPTROOT/util/chrysalis_clean_locks.sh
+
 $RUNSCRIPT -O master --baseline-compare
 
-source $SCRIPTROOT/util/chrysalis_postrun.sh
+source $SCRIPTROOT/util/chrysalis_clean_locks.sh
