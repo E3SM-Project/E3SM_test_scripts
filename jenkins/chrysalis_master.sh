@@ -7,5 +7,4 @@ source $SCRIPTROOT/util/setup_common.sh
 
 $RUNSCRIPT --baseline-compare
 
-# OpenMPI creates .loc/.lock files which might stay on after aborted file close, force clean them
-find /lcrc/group/e3sm/data/ -name "*.loc*" -exec rm -f {} \;
+source $SCRIPTROOT/util/chrysalis_postrun.sh

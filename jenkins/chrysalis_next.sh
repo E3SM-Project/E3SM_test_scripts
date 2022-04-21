@@ -6,3 +6,5 @@ export CIME_MACHINE=chrysalis
 source $SCRIPTROOT/util/setup_common.sh
 
 $RUNSCRIPT -O master --baseline-compare
+
+source $SCRIPTROOT/util/chrysalis_postrun.sh

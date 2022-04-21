@@ -6,3 +6,5 @@ export CIME_MACHINE=chrysalis
 source $SCRIPTROOT/util/setup_common.sh
 
 $RUNSCRIPT -t e3sm_prod_bench -O master --baseline-compare --check-throughput --check-memory
+
+source $SCRIPTROOT/util/chrysalis_postrun.sh
