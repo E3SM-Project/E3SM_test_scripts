@@ -7,4 +7,4 @@ export SCREAM_MACHINE=$CIME_MACHINE
 source $SCRIPTROOT/util/setup_common.sh
 
 declare -i fails=0
-$RUNSCRIPT -t e3sm_scream_v1_medres
+$RUNSCRIPT -t e3sm_scream_v1_medres --compiler=gnugpu
