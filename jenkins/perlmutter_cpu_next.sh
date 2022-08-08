@@ -6,4 +6,4 @@ export CIME_MACHINE=pm-cpu
 export SCREAM_MACHINE=$CIME_MACHINE
 source $SCRIPTROOT/util/setup_common.sh
 
-$RUNSCRIPT -t e3sm_integration --compiler=gnu
+$RUNSCRIPT -t e3sm_integration --compiler=gnu -O master --baseline-compare
