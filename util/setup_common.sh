@@ -1,10 +1,10 @@
 umask 002
 
 if [ -z "$FORCE_REPO_PATH" ]; then
-  if [ -d $SCRIPTROOT/../ACME ]; then
-    FOUND_REPO_NAME=ACME
-  elif [ -d $SCRIPTROOT/../E3SM ]; then
+  if [ -d $SCRIPTROOT/../E3SM ]; then
     FOUND_REPO_NAME=E3SM
+  elif [ -d $SCRIPTROOT/../ACME ]; then
+    FOUND_REPO_NAME=ACME
   else
     # Not certain this is the best way to handle this...
     echo "Could not find the E3SM repo"
