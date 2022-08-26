@@ -6,4 +6,6 @@ export CIME_MACHINE=ascent
 export FORCE_REPO_PATH=scream
 source $SCRIPTROOT/util/setup_common.sh
 
-$RUNSCRIPT -j 4 -t e3sm_scream_v1 --compiler=gnugpu || exit 0
+$RUNSCRIPT -j 4 -t e3sm_scream_v1 --compiler=gnugpu
+
+$RUNSCRIPT -j 4 -t e3sm_scream_v1_medres --compiler=gnugpu
