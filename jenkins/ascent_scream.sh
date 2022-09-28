@@ -9,3 +9,5 @@ source $SCRIPTROOT/util/setup_common.sh
 $RUNSCRIPT -j 4 -t e3sm_scream_v1 --compiler=gnugpu
 
 $RUNSCRIPT -j 4 -t e3sm_scream_v1_medres --compiler=gnugpu
+
+$RUNSCRIPT -j 4 -t e3sm_scream_v1_long --compiler=gnugpu
