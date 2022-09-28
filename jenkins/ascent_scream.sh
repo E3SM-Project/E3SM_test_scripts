@@ -9,8 +9,6 @@ source $SCRIPTROOT/util/setup_common.sh
 exit_code=0
 $RUNSCRIPT -j 4 -t e3sm_scream_v1 --compiler=gnugpu || exit_code=1
 
-$RUNSCRIPT -j 4 -t e3sm_scream_v1_medres --compiler=gnugpu || exit_code=1
-
 $RUNSCRIPT -j 4 -t e3sm_scream_v1_long --compiler=gnugpu || exit_code=1
 
 exit $exit_code
