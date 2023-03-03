@@ -7,6 +7,6 @@ export FORCE_REPO_PATH=Omega
 source $SCRIPTROOT/util/setup_common.sh
 
 exit_code=0
-$RUNSCRIPT -j 4 -t e3sm_gpuacc $1 || exit_code=1
+$RUNSCRIPT -j 4 -t e3sm_gpuacc --compiler crayclanggpu || exit_code=1
 
 exit $exit_code
