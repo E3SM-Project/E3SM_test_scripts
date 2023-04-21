@@ -17,7 +17,9 @@ fi
 
 export CIME_MODEL=e3sm
 
-if [ -f $E3SMREPO/cime/CIME/Tools/jenkins_script ]; then
+if [ -f $E3SMREPO/cime_config/scripts/jenkins_script ]; then
+  PATH_TO_JENKINS=$E3SMREPO/cime_config/scripts/jenkins_script
+elif [ -f $E3SMREPO/cime/CIME/Tools/jenkins_script ]; then
   PATH_TO_JENKINS=$E3SMREPO/cime/CIME/Tools/jenkins_script
 else
   PATH_TO_JENKINS=$E3SMREPO/cime/scripts/Tools/jenkins_script
