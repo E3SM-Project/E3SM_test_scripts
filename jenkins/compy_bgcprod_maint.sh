@@ -1,5 +1,5 @@
 
-#!/bin/bash -xle
+#!/bin/bash -xe
 
 # boiler: every script must have these three lines
 export SCRIPTROOT=$( cd "$( dirname "${BASH_SOURCE[0]}" )" && cd .. && pwd )
