@@ -1,4 +1,4 @@
-#!/bin/bash -xle
+#!/bin/bash -xe
 # Purpose: Automate performance data upload to PACE
 # Author: Sarat Sreepathi (sarat@ornl.gov)
 
