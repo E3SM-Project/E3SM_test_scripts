@@ -1,1 +1,1 @@
-conda activate e3sm_build
+source activate e3sm_build
