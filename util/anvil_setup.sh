@@ -8,3 +8,5 @@ export TERM=xterm
 export PROJECT=condo
 
 module load cmake/3.14.2-gvwazz3
+
+RUNSCRIPT_FLAGS="--scratch-root /lcrc/group/e3sm2/`whoami`/scratch/anvil --baseline-root /lcrc/group/e3sm2/baselines/anvil/intel"

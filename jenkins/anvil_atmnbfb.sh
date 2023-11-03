@@ -6,7 +6,7 @@ export CIME_MACHINE=anvil
 source $SCRIPTROOT/util/setup_common.sh
 
 exit_code=0
-$RUNSCRIPT -j 4 -t e3sm_atm_nbfb -O master --baseline-compare || exit_code=1
+$RUNSCRIPT -j 4 -t e3sm_atm_nbfb $RUNSCRIPT_FLAGS -O master --baseline-compare || exit_code=1
 
 source $SCRIPTROOT/util/anvil_postrun.sh
 
