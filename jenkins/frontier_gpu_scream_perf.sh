@@ -6,4 +6,4 @@ export CIME_MACHINE=frontier-scream-gpu
 export SCREAM_MACHINE=$CIME_MACHINE
 source $SCRIPTROOT/util/setup_common.sh
 
-$RUNSCRIPT -t e3sm_scream_v1_highres --compiler=crayclang-scream -b master --baseline-compare --check-throughput --check-memory --save-timing --ignore-namelists
+$RUNSCRIPT -t e3sm_scream_v1_hires --compiler=crayclang-scream -b master --baseline-compare --check-throughput --check-memory --save-timing --ignore-namelists
