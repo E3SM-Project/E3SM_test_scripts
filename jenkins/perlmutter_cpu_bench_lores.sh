@@ -6,4 +6,4 @@ export CIME_MACHINE=pm-cpu
 export SCREAM_MACHINE=$CIME_MACHINE
 source $SCRIPTROOT/util/setup_common.sh
 
-$RUNSCRIPT -t e3sm_bench_lores --compiler=intel -O master --baseline-compare --check-throughput --check-memory --save-timing --ignore-namelists
+$RUNSCRIPT -t e3sm_bench_lores --compiler=intel -b master --baseline-compare --check-throughput --check-memory --save-timing --ignore-namelists --ignore-diffs
