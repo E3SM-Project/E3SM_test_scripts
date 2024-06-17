@@ -11,4 +11,4 @@ source $SCRIPTROOT/util/setup_common.sh
 $RUNSCRIPT -O master $RUNSCRIPT_FLAGS -t homme_integration --compiler=intel || exit_code=1
 $RUNSCRIPT -O master $RUNSCRIPT_FLAGS -t homme_integration --compiler=gnu || exit_code=1
 
-return exit_code
+exit $exit_code
