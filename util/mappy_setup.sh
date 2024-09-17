@@ -1,5 +1,6 @@
 
-source /projects/sems/modulefiles/utils/sems-modules-init.sh
+# This should be done upon login
+#source /projects/sems/modulefiles/utils/sems-modules-init.sh
 
 # We only need cmake here because mappy run cime standalone tests which
 # do not load the CIME env before running cmake
