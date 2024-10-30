@@ -5,4 +5,4 @@ source /gpfs/fs1/soft/chrysalis/spack/opt/spack/linux-centos8-x86_64/gcc-9.3.0/l
 
 export PROJECT=e3sm
 
-RUNSCRIPT_FLAGS="--scratch-root /lcrc/group/e3sm2/`whoami`/scratch/chrys --baseline-root /lcrc/group/e3sm2/baselines/chrys/intel"
+RUNSCRIPT_FLAGS="--scratch-root /lcrc/group/e3sm2/`whoami`/scratch/chrys"
