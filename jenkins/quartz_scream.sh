@@ -7,9 +7,9 @@ source $SCRIPTROOT/util/setup_common.sh
 
 declare -i fails=0
 set +e
-$RUNSCRIPT -t e3sm_scream -b master
+$RUNSCRIPT -t e3sm_eamxx -b master
 if [[ $? != 0 ]]; then fails=$fails+1; fi
-$RUNSCRIPT -t e3sm_scream_v1 -b master
+$RUNSCRIPT -t e3sm_eamxx_v1 -b master
 if [[ $? != 0 ]]; then fails=$fails+1; fi
 
 if [[ $fails > 0 ]]; then

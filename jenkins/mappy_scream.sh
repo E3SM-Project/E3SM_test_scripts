@@ -8,9 +8,9 @@ source $SCRIPTROOT/util/setup_common.sh
 
 declare -i fails=0
 set +e
-$RUNSCRIPT -t e3sm_scream --baseline-compare $@
+$RUNSCRIPT -t e3sm_eamxx --baseline-compare $@
 if [[ $? != 0 ]]; then fails=$fails+1; fi
-$RUNSCRIPT -t e3sm_scream_v1 --compiler=gnu9 --baseline-compare $@
+$RUNSCRIPT -t e3sm_eamxx_v1 --compiler=gnu9 --baseline-compare $@
 if [[ $? != 0 ]]; then fails=$fails+1; fi
 
 if [[ $fails > 0 ]]; then

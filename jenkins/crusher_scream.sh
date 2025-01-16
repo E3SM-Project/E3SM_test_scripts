@@ -7,8 +7,8 @@ export FORCE_REPO_PATH=scream
 source $SCRIPTROOT/util/setup_common.sh
 
 exit_code=0
-$RUNSCRIPT -j 4 -t e3sm_scream_v1_long_crusher --compiler=crayclang-scream -b master || exit_code=1
+$RUNSCRIPT -j 4 -t e3sm_eamxx_v1_long_crusher --compiler=crayclang-scream -b master || exit_code=1
 
-$RUNSCRIPT -j 4 -t e3sm_scream_v1 --compiler=crayclang-scream -b master || exit_code=1
+$RUNSCRIPT -j 4 -t e3sm_eamxx_v1 --compiler=crayclang-scream -b master || exit_code=1
 
 exit $exit_code
