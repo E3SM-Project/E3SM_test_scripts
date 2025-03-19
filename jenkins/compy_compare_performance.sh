@@ -29,15 +29,11 @@ main() {
     update_git
 
     #create directory for tests from today
-    #mkdir with current date (test_03-09-2025__06_00_01, code: 
     date_str="`date +'%m-%d-%Y__%H_%M_%S'`"
-    # date_str="03-18-2025__09_03_43"
     temp_dir="test_${date_str}"
     echo "creating $temp_dir for this test..."
     mkdir -p $temp_dir
     echo "test dir is ${temp_dir}..."
-
-    # temp_dir="test_03-18-2025__09_03_43"
 
     #run 1 (Current master with MAM4xx)
     cd cime/scripts
