@@ -30,9 +30,9 @@ main() {
 
     #create directory for tests from today
     date_str="`date +'%m-%d-%Y__%H_%M_%S'`"
-    temp_dir="test_${date_str}"
+    temp_dir="../test_${date_str}"
     echo "creating $temp_dir for this test..."
-    mkdir -p $temp_dir
+    mkdir -p ${temp_dir}
     echo "test dir is ${temp_dir}..."
 
     #run 1 (Current master with MAM4xx)
@@ -92,7 +92,7 @@ main() {
     echo "EAMxx default Throughput - ${eamxx_throughput}"
 
     #save data in a csv file
-    cd ${code_root}/../data
+    cd /qfs/projects/eagles/litz372/performance_data
     DATE=$(date +'%Y-%m-%d')
     echo "${DATE},${mam4xx_throughput}" >> mam4xx_performance.csv
     echo "${DATE},${eamxx_throughput}" >> eamxx_performance.csv
@@ -101,9 +101,12 @@ main() {
     cat eamxx_performance.csv
 
     # do the plotting
-    cd ..
+    cd ${code_root}/../
     source .venv/bin/activate
+    cd E3SM_test_scripts/jenkins
     python3 compy_plot_compare_performance.py
+
+    
 }
 
 main

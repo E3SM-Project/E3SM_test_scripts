@@ -5,8 +5,8 @@ from datetime import datetime
 date_str = datetime.today().strftime('%Y-%m-%d')
 
 # Load data from CSV file into a DataFrame
-eamxx_df = pd.read_csv('./data/eamxx_performance.csv', header=None, names=['date', 'throughput'])
-mam4xx_df = pd.read_csv('./data/mam4xx_performance.csv', header=None, names=['date', 'throughput'])
+eamxx_df = pd.read_csv('/qfs/projects/eagles/litz372/performance_data/eamxx_performance.csv', header=None, names=['date', 'throughput'])
+mam4xx_df = pd.read_csv('/qfs/projects/eagles/litz372/performance_data/mam4xx_performance.csv', header=None, names=['date', 'throughput'])
 
 # Convert date column to datetime type
 eamxx_df['date'] = pd.to_datetime(eamxx_df['date'])
@@ -25,4 +25,4 @@ plt.ylabel('Throughput (simulated_years/day)')
 plt.xticks(rotation=45)
 plt.grid(True)
 plt.legend(['EAMxx default', 'EAMxx+MAM4xx'])
-plt.savefig('./data/performance_comp_' + date_str + '.png', bbox_inches='tight')
+plt.savefig('/qfs/projects/eagles/litz372/performance_data/performance_comp_' + date_str + '.png', bbox_inches='tight')
