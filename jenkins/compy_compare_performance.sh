@@ -16,9 +16,13 @@ update_git () {
 
 main() {
 
+    source /etc/profile.d/modules.sh
+
     #path to E3SM
     code_root=/compyfs/litz372/e3sm_scratch/performance_testing/E3SM
     
+    module load cmake/3.19.6 gcc/8.1.0  mvapich2/2.3.1 python/3.7.3
+
     #machine to run the test on
     mach=compy
 
@@ -106,7 +110,9 @@ main() {
     cd E3SM_test_scripts/jenkins
     python3 compy_plot_compare_performance.py
 
-    
+   #copy plot to /compyfs/www
+   cp /qfs/projects/eagles/litz372/performance_data/performance_comp_${DATE}.png /compyfs/www/litz372/performance_data
+   echo "visit https://compy-dtn.pnl.gov/litz372/performance_data/performance_comp_${DATE}.png for the results!"
 }
 
 main
