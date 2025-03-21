@@ -111,8 +111,8 @@ main() {
     python3 compy_plot_compare_performance.py
 
    #copy plot to /compyfs/www
-   cp /qfs/projects/eagles/litz372/performance_data/performance_comp_${DATE}.png /compyfs/www/litz372/performance_data
-   echo "visit https://compy-dtn.pnl.gov/litz372/performance_data/performance_comp_${DATE}.png for the results!"
+   cp /qfs/projects/eagles/litz372/performance_data/performance_comp_${DATE}.png /compyfs/www/litz372/performance_data/performance_comp.png
+   echo "visit https://compy-dtn.pnl.gov/litz372/performance_data/performance_comp.png for the results!"
 }
 
 main
