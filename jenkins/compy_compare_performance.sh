@@ -19,15 +19,20 @@ main() {
     source /etc/profile.d/modules.sh
 
     #path to E3SM
-    code_root=/compyfs/litz372/e3sm_scratch/performance_testing/E3SM
+    code_root="/compyfs/litz372/e3sm_scratch/performance_testing/E3SM"
     
-    module load cmake/3.19.6 gcc/8.1.0  mvapich2/2.3.1 python/3.7.3
 
     #machine to run the test on
-    mach=compy
+    mach="compy"
+    mach_compiler="${mach}_intel"
+    
+    if [ $mach == "compy" ]; then
+        module load cmake/3.19.6 gcc/8.1.0  mvapich2/2.3.1 python/3.7.3
+    fi
 
     #Resolution
     resolution="ne4pg2_ne4pg2"
+    compset="F2010-SCREAMv1"
     
     cd $code_root
     update_git
@@ -41,10 +46,9 @@ main() {
 
     #run 1 (Current master with MAM4xx)
     cd cime/scripts
-    mach_compiler="${mach}_intel"
 
-    mam4xx_testname=SMS_Ln5.${resolution}.F2010-SCREAMv1.${mach_compiler}.eamxx-mam4xx-all_mam4xx_procs
-    eamxx_testname=SMS_Ln5.${resolution}.F2010-SCREAMv1
+    mam4xx_testname=SMS_Ln5.${resolution}.${compset}.${mach_compiler}.eamxx-mam4xx-all_mam4xx_procs
+    eamxx_testname=SMS_Ln5.${resolution}.${compset}
 
     echo "starting EAMxx+MAM4xx test..."
     ./create_test ${mam4xx_testname}  -p e3sm -t "master_${date_str}" --output-root "../../${temp_dir}" &
@@ -98,21 +102,21 @@ main() {
     #save data in a csv file
     cd /qfs/projects/eagles/litz372/performance_data
     DATE=$(date +'%Y-%m-%d')
-    echo "${DATE},${mam4xx_throughput}" >> mam4xx_performance.csv
-    echo "${DATE},${eamxx_throughput}" >> eamxx_performance.csv
+    echo "${DATE},${mam4xx_throughput}" >> mam4xx_performance_${resolution}.csv
+    echo "${DATE},${eamxx_throughput}" >> eamxx_performance_${resolution}.csv
     echo "data saved at $(pwd)"
-    cat mam4xx_performance.csv
-    cat eamxx_performance.csv
+    cat mam4xx_performance_${resolution}.csv
+    cat eamxx_performance_${resolution}.csv
 
     # do the plotting
     cd ${code_root}/../
     source .venv/bin/activate
     cd E3SM_test_scripts/jenkins
-    python3 compy_plot_compare_performance.py
+    python3 compy_plot_compare_performance.py $resolution
 
    #copy plot to /compyfs/www
-   cp /qfs/projects/eagles/litz372/performance_data/performance_comp_${DATE}.png /compyfs/www/litz372/performance_data/performance_comp.png
-   echo "visit https://compy-dtn.pnl.gov/litz372/performance_data/performance_comp.png for the results!"
+   cp /qfs/projects/eagles/litz372/performance_data/performance_comp_${DATE}_${resolution}.png /compyfs/www/litz372/performance_data/performance_comp_${resolution}.png
+   echo "visit https://compy-dtn.pnl.gov/litz372/performance_data/performance_comp_${resolution}.png for the results!"
 }
 
 main
