@@ -8,7 +8,7 @@ source $SCRIPTROOT/util/setup_common.sh
 
 declare -i fails=0
 set +e
-$RUNSCRIPT -j 4 -t e3sm_eamxx_v1 $RUNSCRIPT_FLAGS --baseline-compare $@
+$RUNSCRIPT -j 4 -t e3sm_eamxx_v1 $RUNSCRIPT_FLAGS --baseline-compare --pes-file $E3SMREPO/cime_config/testmods_dirs/config_pes_tests.xml $@
 if [[ $? != 0 ]]; then fails=$fails+1; fi
 
 if [[ $fails > 0 ]]; then
