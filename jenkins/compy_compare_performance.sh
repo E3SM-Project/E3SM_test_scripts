@@ -1,103 +1,109 @@
 #!/bin/bash
 
-#This script runs 2 simulations:
-# 1. Current master with MAM4xx
-# 2. Current master default EAMxx
-
-
-update_git () {
-    echo "Updating the E3SM repo..."
-    git fetch --all
-    git pull origin master
-    git submodule deinit -f . && git submodule update --init --recursive
-    git submodule update --init --recursive
-    git submodule sync --recursive
-}
+#-------------------------------------------------------------------------------
+#-------------------------------------------------------------------------------
+# Description:
+#   This script automates the process of running two E3SM tests:
+#     1. EAMxx with MAM4xx (MAM4xx compset)
+#     2. EAMxx default (standard SCREAMv1 compset)
+#
+#   It does the following:
+#     - Verifies that the E3SM source directory exists
+#     - Resets the repo to the latest master and updates submodules
+#     - Creates a timestamped temporary test directory
+#     - Builds and runs both tests under the same configuration
+#
+# Usage:
+#   Customize the user input section below before running the script.
+#---------------------------------------------------------------------------
+#---------------------------------------------------------------------------
 
 main() {
 
-    source /etc/profile.d/modules.sh
-
+    #---------------------------------------------------------------
+    # User-defined configuration
+    #---------------------------------------------------------------
     #path to E3SM
     code_root="/compyfs/litz372/e3sm_scratch/performance_testing/E3SM"
-    
 
+    #Name of the test
+    testname="SMS_Ln5"
+    
     #machine to run the test on
     mach="compy"
-    mach_compiler="${mach}_intel"
-    
-    if [ $mach == "compy" ]; then
-        module load cmake/3.19.6 gcc/8.1.0  mvapich2/2.3.1 python/3.7.3
-    fi
+
+    #compiler to use
+    compiler="intel"
 
     #Resolution
     resolution="ne4pg2_ne4pg2"
-    compset="F2010-SCREAMv1"
+
+    #compset for MAM4xx
+    compset_mam4xx="F2010-EAMxx-MAM4xx"
+
+    #compset for EAMxx
+    compset_eamxx="F2010-SCREAMv1"
     
+    #---------------------------------------------------------------
+    # User-defined configuration ENDs
+    #---------------------------------------------------------------
+
+    check_if_dir_exists $code_root # exit is code doesn't exists
+
+    #cd into the source code directory
     cd $code_root
-    update_git
+
+    #reset code to the latest master
+    update_e3sm
 
     #create directory for tests from today
     date_str="`date +'%m-%d-%Y__%H_%M_%S'`"
-    temp_dir="../test_${date_str}"
-    echo "creating $temp_dir for this test..."
-    mkdir -p ${temp_dir}
-    echo "test dir is ${temp_dir}..."
 
-    #run 1 (Current master with MAM4xx)
+    #extract parent directory of the source code
+    parent_dir=$(dirname "$code_root")
+    temp_dir="${parent_dir}/test_${date_str}"
+    
+    #create a temporary test directory
+    create_temp_dir "$temp_dir"
+
+    #source the modules so that other modules are available to load
+    source /etc/profile.d/modules.sh
+    module load python/3.11.5
+
+    #cd into cime/scripts
+    check_if_dir_exists cime/scripts # exit is code doesn't exists
     cd cime/scripts
 
-    mam4xx_testname=SMS_Ln5.${resolution}.${compset}.${mach_compiler}.eamxx-mam4xx-all_mam4xx_procs
-    eamxx_testname=SMS_Ln5.${resolution}.${compset}
-
+    #Run E3SM tests
     echo "starting EAMxx+MAM4xx test..."
-    ./create_test ${mam4xx_testname}  -p e3sm -t "master_${date_str}" --output-root "../../${temp_dir}" &
+    run_e3sm_test $resolution $compset_mam4xx $mach $compiler $testname $temp_dir
 
-    #run 2 (Current master default EAMxx)
     echo "starting EAMxx default test..."
-    ./create_test ${eamxx_testname} --compiler intel  -p e3sm -t "master_${date_str}" --output-root "../../${temp_dir}" & # --wait
+    run_e3sm_test $resolution $compset_eamxx $mach $compiler $testname $temp_dir
 
-    mam4xx_dir=${mam4xx_testname}.master_${date_str}
-    eamxx_dir=${eamxx_testname}.${mach_compiler}.master_${date_str}
-
+    #wait for the tests directories to be created
     sleep 120
+
+    #check if the EAMxx+MAM4xx test completed
+    mam4xx_dir=${testname}.${resolution}.${compset_mam4xx}.${mach}_${compiler}.master_${date_str}
+    wait_for_run_completion $temp_dir/$mam4xx_dir
     
-    #figure out when these runs are done (option: a while loop to check status sleeping for 30 seconds)
-    cd ${code_root}/${temp_dir}
-    cd ${mam4xx_dir}
-
-    #wait for EAMxx+MAM4xx test to finish 
-    mam4xx_done=""
-    while [[ -z $mam4xx_done ]]
-    do
-        sleep 60
-        echo "checking if MAM4xx Timing file has been created... "
-        grep Timing CaseStatus
-        mam4xx_done=$(grep Timing CaseStatus)
-    done
-
-    #extract EAMxx+MAM4xx timing
-    cd timing
-    mam4xx_throughput=$(grep Throughput e3sm_timing.${mam4xx_testname}*)
+    #Grab MAM4xx timing data
+    cd $temp_dir/$mam4xx_dir/timing
+    mam4xx_throughput=$(grep Throughput e3sm_timing.*)
     mam4xx_throughput=$(echo ${mam4xx_throughput} | grep -oP '\d+\.\d+')
     echo "EAMxx+MAM4xx Throughput - ${mam4xx_throughput}"
 
-    #wait for EAMxx default test to finish 
-    cd ../../${eamxx_dir}
-    eamxx_done=""
-    while [[ -z $eamxx_done ]]
-    do
-        sleep 60
-        echo "checking if EAMxx Timing file has been created... "
-        grep Timing CaseStatus
-        eamxx_done=$(grep Timing CaseStatus)
-    done
+    #check if the EAMxx test completed
+    eamxx_dir=${testname}.${resolution}.${compset_eamxx}.${mach}_${compiler}.master_${date_str}
+    wait_for_run_completion $temp_dir/$eamxx_dir
+    cd $temp_dir/$eamxx_dir/timing
 
-    #extract EAMxx+default timing
-    cd timing
-    eamxx_throughput=$(grep Throughput e3sm_timing.${eamxx_testname}*)
-    eamxx_throughput=$(echo ${eamxx_throughput} | grep -oP '\d+\.\d+')
-    echo "EAMxx default Throughput - ${eamxx_throughput}"
+    #Grab EAMxx timing data
+    eamxx_throughput=$(grep Throughput e3sm_timing.*)
+    eam4xx_throughput=$(echo ${eamxx_throughput} | grep -oP '\d+\.\d+')
+    echo "EAMxx Throughput - ${eamxx_throughput}"
+
 
     #save data in a csv file
     cd /qfs/projects/eagles/litz372/performance_data
@@ -109,7 +115,7 @@ main() {
     cat eamxx_performance_${resolution}.csv
 
     # do the plotting
-    cd ${code_root}/../
+    cd ${parent_dir}
     source .venv/bin/activate
     cd E3SM_test_scripts/jenkins
     python3 compy_plot_compare_performance.py $resolution
@@ -119,4 +125,86 @@ main() {
    echo "visit https://compy-dtn.pnl.gov/litz372/performance_data/performance_comp_${resolution}.png for the results!"
 }
 
+
+#---------------------
+# Function Definitions
+#---------------------
+
+#check if the directory exists otherwise exit
+check_if_dir_exists () {
+    if [ ! -d "$1" ]; then
+        echo "$1 directory doesnt exists. Please ensure directory is there to procced"
+        exit 1
+    fi
+}
+
+#Update the E3SM repo by hard reseting to the latest master
+update_e3sm () {
+    echo "Updating the E3SM repo..."
+    echo "  Reset code to the latest master ..."
+    git fetch origin && git co master && git reset --hard origin/master
+
+    echo "  Update submodules..."
+    git submodule deinit -f . && git submodule update --init --recursive
+}
+
+# Create a temporary test output directory
+create_temp_dir() {
+    local dir="$1"
+    echo "Creating test directory: $dir"
+    mkdir -p "$dir"
+    echo "Test directory created."
+}
+
+# Build and run a test with given configuration
+run_e3sm_test () {
+    # receive the parameters
+    local resolution=$1
+    local compset=$2
+    local mach=$3
+    local compiler=$4
+    local testname=$5
+    local temp_dir=$6
+
+    #launch tests
+    echo "Launching Test:"
+    echo "Creating test: ${testname}.${resolution}.${compset}"
+    ./create_test ${testname}.${resolution}.${compset} --compiler $compiler  \
+    -p e3sm -t "master_${date_str}" --output-root "${temp_dir}" &
+
+}
+
+wait_for_run_completion () {
+    local case_dir=$1
+    local interval=60 # Seconds to wait between checks
+    local elapsed=0
+
+    echo "Waiting for test run to complete in $case_dir..."
+    wait_till_dir_created $case_dir
+    cd "$case_dir" || { echo "Failed to enter $case_dir"; return 1; }
+
+    while true; do
+        if [ -f "CaseStatus" ]; then
+            if grep -q "Timing" CaseStatus; then
+                echo "Run complete! Timing info found in CaseStatus."
+                break
+            fi
+        fi
+        echo "Still waiting... elapsed: $((elapsed/60)) min"
+        sleep "$interval"
+        (( elapsed += interval ))
+    done
+}
+
+wait_till_dir_created() {
+    local case_dir=$1
+    while [ ! -d "$case_dir" ]; do
+        echo "Waiting for $case_dir to be created..."
+        sleep 10
+    done
+}
+
+#--------------------------
+# Start the script
+#--------------------------
 main
