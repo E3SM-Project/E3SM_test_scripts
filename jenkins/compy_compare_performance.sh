@@ -36,7 +36,14 @@ main() {
     compiler="intel"
 
     #Resolution
-    resolution="ne4pg2_ne4pg2"
+    resolution_pattern="^ne[0-9].*$"
+    if [[ $1 =~ $resolution_pattern ]]
+    then
+        resolution=$1
+    else
+        echo "Please provide a valid resolution as the first command line parameter."
+        exit
+    fi
 
     #compset for MAM4xx
     compset_mam4xx="F2010-EAMxx-MAM4xx"
@@ -44,6 +51,10 @@ main() {
     #compset for EAMxx
     compset_eamxx="F2010-SCREAMv1"
     
+    echo "Configuration: "
+    echo "Test ${testname} on ${mach} with ${compiler} compiler"
+    echo "Resolution ${resolution} and compsets ${compset_mam4xx} and ${compset_eamxx}" 
+
     #---------------------------------------------------------------
     # User-defined configuration ENDs
     #---------------------------------------------------------------
@@ -101,7 +112,7 @@ main() {
 
     #Grab EAMxx timing data
     eamxx_throughput=$(grep Throughput e3sm_timing.*)
-    eam4xx_throughput=$(echo ${eamxx_throughput} | grep -oP '\d+\.\d+')
+    eamxx_throughput=$(echo ${eamxx_throughput} | grep -oP '\d+\.\d+')
     echo "EAMxx Throughput - ${eamxx_throughput}"
 
 
@@ -142,7 +153,7 @@ check_if_dir_exists () {
 update_e3sm () {
     echo "Updating the E3SM repo..."
     echo "  Reset code to the latest master ..."
-    git fetch origin && git co master && git reset --hard origin/master
+    git fetch origin && git checkout master && git reset --hard origin/master
 
     echo "  Update submodules..."
     git submodule deinit -f . && git submodule update --init --recursive
@@ -207,4 +218,4 @@ wait_till_dir_created() {
 #--------------------------
 # Start the script
 #--------------------------
-main
+main $1
