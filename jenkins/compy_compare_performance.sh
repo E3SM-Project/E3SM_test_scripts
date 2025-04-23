@@ -27,23 +27,10 @@ main() {
     code_root="/compyfs/litz372/e3sm_scratch/performance_testing/E3SM"
 
     #Name of the test
-    testname="SMS_Ln5"
+    testname="SMS_Ln${timestep}"
     
     #machine to run the test on
     mach="compy"
-
-    #compiler to use
-    compiler="intel"
-
-    #Resolution
-    resolution_pattern="^ne[0-9].*$"
-    if [[ $1 =~ $resolution_pattern ]]
-    then
-        resolution=$1
-    else
-        echo "Please provide a valid resolution as the first command line parameter."
-        exit
-    fi
 
     #compset for MAM4xx
     compset_mam4xx="F2010-EAMxx-MAM4xx"
@@ -94,6 +81,7 @@ main() {
 
     #wait for the tests directories to be created
     sleep 120
+    exit
 
     #check if the EAMxx+MAM4xx test completed
     mam4xx_dir=${testname}.${resolution}.${compset_mam4xx}.${mach}_${compiler}.master_${date_str}
@@ -216,7 +204,58 @@ wait_till_dir_created() {
     done
 }
 
+#-----------------------------
+# Check command line args
+#-----------------------------
+
+#parse command line args
+while getopts ":r:c:t:" opt; do
+  case $opt in
+    r) resolution="$OPTARG"
+    ;;
+    \?) echo "Invalid option -$OPTARG; please provide a valid model resolution using -r command line option" >&2
+    exit 1
+    ;;
+    c) compiler="$OPTARG"
+    ;;
+    \?) echo "Invalid option -$OPTARG; please set a valid compiler using -c command line option" >&2
+    exit 1
+    ;;
+    t) timestep="$OPTARG"
+    ;;
+    \?) echo "Invalid option -$OPTARG; please select a valid timestep using -t command line option" >&2
+    exit 1
+    ;;
+  esac
+
+  case $OPTARG in
+    -*) echo "Option $opt needs a valid argument"
+    exit 1
+    ;;
+  esac
+done
+
+resolution_pattern="^ne[0-9].*$"
+if [ -z "${resolution}" ]; then
+    echo "resolution is not set, please set it using -r command line option"
+    exit 1
+elif [[ ! $resolution =~ $resolution_pattern ]];
+then
+    echo "Please provide a valid resolution as the first command line parameter."
+    exit 1
+fi
+
+if [ -z "${compiler}" ]; then
+    echo "Compiler is not set, please set it using -c command line option"
+    exit 1
+fi
+
+if [ -z "${timestep}" ]; then
+    echo "Timestep is not set, please set it using -t command line option"
+    exit 1
+fi
+
 #--------------------------
 # Start the script
 #--------------------------
-main $1
+main 
