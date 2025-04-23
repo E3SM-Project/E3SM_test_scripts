@@ -101,9 +101,10 @@ main() {
     
     #Grab MAM4xx timing data
     cd $temp_dir/$mam4xx_dir/timing
-    mam4xx_throughput=$(grep Throughput e3sm_timing.*)
-    mam4xx_throughput=$(echo ${mam4xx_throughput} | grep -oP '\d+\.\d+')
+    mam4xx_throughput=$(grep Throughput e3sm_timing.* | grep -oP '\d+\.\d+')
     echo "EAMxx+MAM4xx Throughput - ${mam4xx_throughput}"
+    mam4xx_cost=$(grep "Model Cost" e3sm_timing.* | grep -oP '\d+\.\d+')
+    echo "EAMxx+MAM4xx Model Cost - ${mam4xx_cost}"
 
     #check if the EAMxx test completed
     eamxx_dir=${testname}.${resolution}.${compset_eamxx}.${mach}_${compiler}.master_${date_str}
@@ -111,16 +112,16 @@ main() {
     cd $temp_dir/$eamxx_dir/timing
 
     #Grab EAMxx timing data
-    eamxx_throughput=$(grep Throughput e3sm_timing.*)
-    eamxx_throughput=$(echo ${eamxx_throughput} | grep -oP '\d+\.\d+')
+    eamxx_throughput=$(grep Throughput e3sm_timing.* | grep -oP '\d+\.\d+')
     echo "EAMxx Throughput - ${eamxx_throughput}"
-
+    eamxx_cost=$(grep "Model Cost" e3sm_timing.* | grep -oP '\d+\.\d+')
+    echo "EAMxx Model Cost - ${eamxx_cost}"
 
     #save data in a csv file
     cd /qfs/projects/eagles/litz372/performance_data
     DATE=$(date +'%Y-%m-%d')
-    echo "${DATE},${mam4xx_throughput}" >> mam4xx_performance_${resolution}.csv
-    echo "${DATE},${eamxx_throughput}" >> eamxx_performance_${resolution}.csv
+    echo "${DATE},${mam4xx_throughput},${mam4xx_cost}" >> mam4xx_performance_${resolution}.csv
+    echo "${DATE},${eamxx_throughput},${eamxx_cost}" >> eamxx_performance_${resolution}.csv
     echo "data saved at $(pwd)"
     cat mam4xx_performance_${resolution}.csv
     cat eamxx_performance_${resolution}.csv
