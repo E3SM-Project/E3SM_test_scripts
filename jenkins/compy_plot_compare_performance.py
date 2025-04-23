@@ -6,10 +6,16 @@ import sys
 date_str = datetime.today().strftime('%Y-%m-%d')
 
 resolution = sys.argv[1]
+machine = sys.argv[2]
+eamxx_compset = sys.argv[3] 
+mam4xx_compset = sys.argv[4]
+destination = sys.argv[5]
 
 # Load data from CSV file into a DataFrame
-eamxx_df = pd.read_csv('/qfs/projects/eagles/litz372/performance_data/eamxx_performance_' + resolution + '.csv', header=None, names=['date', 'throughput', 'model_cost'])
-mam4xx_df = pd.read_csv('/qfs/projects/eagles/litz372/performance_data/mam4xx_performance_' + resolution + '.csv', header=None, names=['date', 'throughput', 'model_cost'])
+#eamxx_df = pd.read_csv('/qfs/projects/eagles/litz372/performance_data/eamxx_performance_' + resolution + '.csv', header=None, names=['date', 'throughput'])
+#mam4xx_df = pd.read_csv('/qfs/projects/eagles/litz372/performance_data/mam4xx_performance_' + resolution + '.csv', header=None, names=['date', 'throughput'])
+eamxx_df = pd.read_csv(destination + '/eamxx_performance_' + resolution + '.csv', header=None, names=['date', 'throughput', 'model_cost'])
+mam4xx_df = pd.read_csv(destination + '/mam4xx_performance_' + resolution + '.csv', header=None, names=['date', 'throughput', 'model_cost'])
 
 # Convert date column to datetime type
 eamxx_df['date'] = pd.to_datetime(eamxx_df['date'])
@@ -33,6 +39,7 @@ plt.ylabel('Throughput (simulated_years/day)')
 plt.xticks(rotation=45)
 plt.grid(True)
 plt.legend(['EAMxx default', 'EAMxx+MAM4xx'])
-test_specs = "Machine: compy (CPU)\nResolution: " + resolution + "\nLength: 5 time steps\nEAMxx Compset: F2010-SCREAMv1\nMAM4xx Compset: F2010-EAMxx-MAM4xx\nMAM4xx Average Model Cost: " + mam4xx_avg_cost + "\nEAMxx Average Model Cost: " + eamxx_avg_cost
+test_specs = "Machine: " + machine + "\nResolution: " + resolution + "\nLength: 5 time steps\nEAMxx Compset: " + eamxx_compset + "\nMAM4xx Compset: " + mam4xx_compset + "\nMAM4xx Average Model Cost: " + mam4xx_avg_cost + "\nEAMxx Average Model Cost: " + eamxx_avg_cost
 plt.figtext(.95, .5, test_specs, ha="left")
-plt.savefig('/qfs/projects/eagles/litz372/performance_data/performance_comp_' + date_str + '_' + resolution + '.png', bbox_inches='tight')
+#plt.savefig('/qfs/projects/eagles/litz372/performance_data/performance_comp_' + date_str + '_' + resolution + '.png', bbox_inches='tight')
+plt.savefig(destination + '/performance_comp_' + date_str + '_' + resolution + '.png', bbox_inches='tight')
