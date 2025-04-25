@@ -23,15 +23,10 @@ main() {
     #---------------------------------------------------------------
     # User-defined configuration
     #---------------------------------------------------------------
-    #path to E3SM
-    # code_root="/compyfs/litz372/e3sm_scratch/performance_testing/E3SM"
 
     #Name of the test
     testname="SMS_Ln${timestep}"
     
-    #machine to run the test on
-    # mach="compy"
-
     #compset for MAM4xx
     compset_mam4xx="F2010-EAMxx-MAM4xx"
 
@@ -52,7 +47,7 @@ main() {
     cd $code_root
 
     #reset code to the latest master
-    # update_e3sm
+    update_e3sm
 
     #create directory for tests from today
     date_str="`date +'%m-%d-%Y__%H_%M_%S'`"
@@ -113,11 +108,13 @@ main() {
     cd ${parent_dir}
     source .venv/bin/activate
     cd E3SM_test_scripts/jenkins
-    python3 compy_plot_compare_performance.py $resolution $mach $compset_eamxx $compset_mam4xx $data_dest
+    python3 compy_plot_compare_performance.py $resolution $mach $compset_eamxx $compset_mam4xx $data_dest $timestep
 
-   #copy plot to /compyfs/www
-#    cp /qfs/projects/eagles/litz372/performance_data/performance_comp_${DATE}_${resolution}.png /compyfs/www/litz372/performance_data/performance_comp_${resolution}.png
-#    echo "visit https://compy-dtn.pnl.gov/litz372/performance_data/performance_comp_${resolution}.png for the results!"
+    #copy plot to /compyfs/www
+    if [ "$mach" = "compy" ]; then
+      cp ${data_dest}/performance_comp_${DATE}_${resolution}.png /compyfs/www/litz372/performance_data/performance_comp_${resolution}.png
+      echo "visit https://compy-dtn.pnl.gov/litz372/performance_data/performance_comp_${resolution}.png for the results!"
+    fi
 }
 
 

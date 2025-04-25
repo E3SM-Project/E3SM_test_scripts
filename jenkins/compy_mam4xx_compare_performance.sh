@@ -15,7 +15,7 @@ main() {
     compiler=intel
 
     #set resolution
-    resolution=ne4pg2_ne4pg2
+    resolution=$1
 
     #set timestep
     timestep=5
@@ -32,7 +32,7 @@ main() {
     #---------------------------------------------------------------
 
     #TODO: 
-    ./mam4xx_compare_performance.sh -r $resolution -c $compiler -t $timestep -m $mach -p $code_root -d $data_dest
+    /compyfs/litz372/e3sm_scratch/performance_testing/E3SM_test_scripts/jenkins/mam4xx_compare_performance.sh -r $resolution -c $compiler -t $timestep -m $mach -p $code_root -d $data_dest
 
 }
 
@@ -40,4 +40,4 @@ main() {
 #--------------------------
 # Start the script
 #--------------------------
-main
+main $1
