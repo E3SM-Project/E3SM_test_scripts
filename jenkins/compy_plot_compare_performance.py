@@ -23,11 +23,8 @@ mam4xx_df['date'] = pd.to_datetime(mam4xx_df['date'])
 print(eamxx_df)
 print(mam4xx_df)
 
-mam4xx_avg_cost = mam4xx_df.loc[:, 'model_cost'].mean()
-eamxx_avg_cost = eamxx_df.loc[:, 'model_cost'].mean()
-mam4xx_avg_cost = str(mam4xx_avg_cost)
-eamxx_avg_cost = str(eamxx_avg_cost)
-
+mam4xx_avg_cost = str(mam4xx_df.loc[:, 'model_cost'].mean())
+eamxx_avg_cost = str(eamxx_df.loc[:, 'model_cost'].mean())
 # Plot the data using matplotlib
 plt.figure(figsize=(10, 5))
 plt.plot(eamxx_df['date'], eamxx_df['throughput'], marker='o')
