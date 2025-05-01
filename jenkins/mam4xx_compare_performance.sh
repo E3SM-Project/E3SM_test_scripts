@@ -201,7 +201,7 @@ wait_til_dir_created() {
 #-----------------------------
 
 #parse command line args
-while getopts ":r:c:t:m:p:d:" opt; do
+while getopts ":r:c:t:m:p:d:s:" opt; do
   case $opt in
     r) resolution="$OPTARG"
     ;;
