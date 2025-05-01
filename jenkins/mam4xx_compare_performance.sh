@@ -54,7 +54,7 @@ main() {
 
     #extract parent directory of the source code
     parent_dir=$(dirname "$code_root")
-    temp_dir="${parent_dir}/test_${date_str}"
+    temp_dir="${parent_dir}/perf_test/test_${date_str}"
     
     #create a temporary test directory
     create_temp_dir "$temp_dir"
@@ -112,7 +112,7 @@ main() {
 
     #copy plot to /compyfs/www
     if [ "$mach" = "compy" ]; then
-      cp ${data_dest}/performance_comp_${DATE}_${resolution}.png /compyfs/www/litz372/performance_data/performance_comp_${resolution}.png
+      cp ${data_dest}/performance_comp_${DATE}_${resolution}.png ${share_dest}/performance_comp_${resolution}.png
       echo "visit https://compy-dtn.pnl.gov/litz372/performance_data/performance_comp_${resolution}.png for the results!"
     fi
 }
@@ -172,7 +172,7 @@ wait_for_run_completion () {
     local elapsed=0
 
     echo "Waiting for test run to complete in $case_dir..."
-    wait_till_dir_created $case_dir
+    wait_til_dir_created $case_dir
     cd "$case_dir" || { echo "Failed to enter $case_dir"; return 1; }
 
     while true; do
@@ -188,7 +188,7 @@ wait_for_run_completion () {
     done
 }
 
-wait_till_dir_created() {
+wait_til_dir_created() {
     local case_dir=$1
     while [ ! -d "$case_dir" ]; do
         echo "Waiting for $case_dir to be created..."
@@ -231,6 +231,11 @@ while getopts ":r:c:t:m:p:d:" opt; do
     d) data_dest="$OPTARG"
     ;;
     \?) echo "Invalid option -$OPTARG; please select a valid data destination using -d command line option" >&2
+    exit 1
+    ;;
+    s) share_dest="$OPTARG"
+    ;;
+    \?) echo "Invalid option -$OPTARG; please select a valid shared data destination using -s command line option" >&2
     exit 1
     ;;
   esac
@@ -276,6 +281,12 @@ if [ -z "${data_dest}" ]; then
     echo "Data destination path is not set, please set it using -d command line option"
     exit 1
 fi
+
+if [ -z "${share_dest}" ]; then
+    echo "Shared data destination path is not set, please set it using -s command line option"
+    exit 1
+fi
+
 
 #--------------------------
 # Start the script
