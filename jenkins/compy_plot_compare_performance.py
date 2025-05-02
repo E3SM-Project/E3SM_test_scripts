@@ -2,15 +2,42 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from datetime import datetime
 import sys
+import argparse
+
+def parse_args(argv):
+  parser = argparse.ArgumentParser(description='Plot EAMxx-MAM4xx performance data')
+  parser.add_argument('-r', '--resolution', metavar='r', type=ascii, nargs='+',
+                     help='Resolution of the model')
+
+  parser.add_argument('-m', '--machine', metavar='m', type=ascii, nargs='+',
+                     help='Cluster this simulation was run on')
+
+  parser.add_argument('-e', '--eamxx_compset', metavar='e', type=ascii, nargs='+',
+                     help='EAMxx default simulation\'s compset')
+
+  parser.add_argument('-x', '--mam4xx_compset', metavar='x', type=ascii, nargs='+',
+                     help='EAMxx+MAM4xx simulation\'s compset')
+
+  parser.add_argument('-d', '--destination', metavar='d', type=ascii, nargs='+',
+                     help='Destination to save plot')
+
+  parser.add_argument('-t', '--timestep', metavar='t', type=ascii, nargs='+',
+                     help='How many timesteps the simulations ran for')
+
+  args = vars(parser.parse_args())
+  
+  resolution = args["resolution"][0].strip("'""'")
+  machine = args["machine"][0].strip("'""'")
+  eamxx_compset = args["eamxx_compset"][0].strip("'""'")
+  mam4xx_compset = args["mam4xx_compset"][0].strip("'""'")
+  destination = args["destination"][0].strip("'""'")
+  timestep = args["timestep"][0].strip("'""'")
+
+  return resolution, machine, eamxx_compset, mam4xx_compset, destination, timestep
 
 date_str = datetime.today().strftime('%Y-%m-%d')
 
-resolution = sys.argv[1]
-machine = sys.argv[2]
-eamxx_compset = sys.argv[3] 
-mam4xx_compset = sys.argv[4]
-destination = sys.argv[5]
-timestep = sys.argv[6]
+resolution, machine, eamxx_compset, mam4xx_compset, destination, timestep = parse_args(sys.argv[1:])
 
 # Load data from CSV file into a DataFrame
 eamxx_df = pd.read_csv(destination + '/eamxx_performance_' + resolution + '.csv', header=None, names=['date', 'throughput', 'model_cost'])
