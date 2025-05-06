@@ -23,28 +23,10 @@ main() {
     #---------------------------------------------------------------
     # User-defined configuration
     #---------------------------------------------------------------
-    #path to E3SM
-    code_root="/compyfs/litz372/e3sm_scratch/performance_testing/E3SM"
 
     #Name of the test
-    testname="SMS_Ln5"
+    testname="SMS_Ln${timestep}"
     
-    #machine to run the test on
-    mach="compy"
-
-    #compiler to use
-    compiler="intel"
-
-    #Resolution
-    resolution_pattern="^ne[0-9].*$"
-    if [[ $1 =~ $resolution_pattern ]]
-    then
-        resolution=$1
-    else
-        echo "Please provide a valid resolution as the first command line parameter."
-        exit
-    fi
-
     #compset for MAM4xx
     compset_mam4xx="F2010-EAMxx-MAM4xx"
 
@@ -72,14 +54,10 @@ main() {
 
     #extract parent directory of the source code
     parent_dir=$(dirname "$code_root")
-    temp_dir="${parent_dir}/test_${date_str}"
+    temp_dir="${parent_dir}/perf_test/test_${date_str}"
     
     #create a temporary test directory
     create_temp_dir "$temp_dir"
-
-    #source the modules so that other modules are available to load
-    source /etc/profile.d/modules.sh
-    module load python/3.11.5
 
     #cd into cime/scripts
     check_if_dir_exists cime/scripts # exit is code doesn't exists
@@ -101,9 +79,10 @@ main() {
     
     #Grab MAM4xx timing data
     cd $temp_dir/$mam4xx_dir/timing
-    mam4xx_throughput=$(grep Throughput e3sm_timing.*)
-    mam4xx_throughput=$(echo ${mam4xx_throughput} | grep -oP '\d+\.\d+')
+    mam4xx_throughput=$(grep Throughput e3sm_timing.* | grep -oP '\d+\.\d+')
     echo "EAMxx+MAM4xx Throughput - ${mam4xx_throughput}"
+    mam4xx_cost=$(grep "Model Cost" e3sm_timing.* | grep -oP '\d+\.\d+')
+    echo "EAMxx+MAM4xx Model Cost - ${mam4xx_cost}"
 
     #check if the EAMxx test completed
     eamxx_dir=${testname}.${resolution}.${compset_eamxx}.${mach}_${compiler}.master_${date_str}
@@ -111,16 +90,16 @@ main() {
     cd $temp_dir/$eamxx_dir/timing
 
     #Grab EAMxx timing data
-    eamxx_throughput=$(grep Throughput e3sm_timing.*)
-    eamxx_throughput=$(echo ${eamxx_throughput} | grep -oP '\d+\.\d+')
+    eamxx_throughput=$(grep Throughput e3sm_timing.* | grep -oP '\d+\.\d+')
     echo "EAMxx Throughput - ${eamxx_throughput}"
-
+    eamxx_cost=$(grep "Model Cost" e3sm_timing.* | grep -oP '\d+\.\d+')
+    echo "EAMxx Model Cost - ${eamxx_cost}"
 
     #save data in a csv file
-    cd /qfs/projects/eagles/litz372/performance_data
+    cd $data_dest
     DATE=$(date +'%Y-%m-%d')
-    echo "${DATE},${mam4xx_throughput}" >> mam4xx_performance_${resolution}.csv
-    echo "${DATE},${eamxx_throughput}" >> eamxx_performance_${resolution}.csv
+    echo "${DATE},${mam4xx_throughput},${mam4xx_cost}" >> mam4xx_performance_${resolution}.csv
+    echo "${DATE},${eamxx_throughput},${eamxx_cost}" >> eamxx_performance_${resolution}.csv
     echo "data saved at $(pwd)"
     cat mam4xx_performance_${resolution}.csv
     cat eamxx_performance_${resolution}.csv
@@ -129,11 +108,13 @@ main() {
     cd ${parent_dir}
     source .venv/bin/activate
     cd E3SM_test_scripts/jenkins
-    python3 compy_plot_compare_performance.py $resolution
+    python3 compy_plot_compare_performance.py -r $resolution -m $mach -e $compset_eamxx -x $compset_mam4xx -d $data_dest -t $timestep
 
-   #copy plot to /compyfs/www
-   cp /qfs/projects/eagles/litz372/performance_data/performance_comp_${DATE}_${resolution}.png /compyfs/www/litz372/performance_data/performance_comp_${resolution}.png
-   echo "visit https://compy-dtn.pnl.gov/litz372/performance_data/performance_comp_${resolution}.png for the results!"
+    #copy plot to /compyfs/www
+    if [ "$mach" = "compy" ]; then
+      cp ${data_dest}/performance_comp_${DATE}_${resolution}.png ${share_dest}/performance_comp_${resolution}.png
+      echo "visit https://compy-dtn.pnl.gov/litz372/performance_data/performance_comp_${resolution}.png for the results!"
+    fi
 }
 
 
@@ -181,7 +162,7 @@ run_e3sm_test () {
     echo "Launching Test:"
     echo "Creating test: ${testname}.${resolution}.${compset}"
     ./create_test ${testname}.${resolution}.${compset} --compiler $compiler  \
-    -p e3sm -t "master_${date_str}" --output-root "${temp_dir}" &
+    -p e3sm -t "master_${date_str}" --output-root "${temp_dir}" -m ${mach} &
 
 }
 
@@ -191,7 +172,7 @@ wait_for_run_completion () {
     local elapsed=0
 
     echo "Waiting for test run to complete in $case_dir..."
-    wait_till_dir_created $case_dir
+    wait_til_dir_created $case_dir
     cd "$case_dir" || { echo "Failed to enter $case_dir"; return 1; }
 
     while true; do
@@ -207,7 +188,7 @@ wait_for_run_completion () {
     done
 }
 
-wait_till_dir_created() {
+wait_til_dir_created() {
     local case_dir=$1
     while [ ! -d "$case_dir" ]; do
         echo "Waiting for $case_dir to be created..."
@@ -215,7 +196,99 @@ wait_till_dir_created() {
     done
 }
 
+#-----------------------------
+# Check command line args
+#-----------------------------
+
+#parse command line args
+while getopts ":r:c:t:m:p:d:s:" opt; do
+  case $opt in
+    r) resolution="$OPTARG"
+    ;;
+    \?) echo "Invalid option -$OPTARG; please provide a valid model resolution using -r command line option" >&2
+    exit 1
+    ;;
+    c) compiler="$OPTARG"
+    ;;
+    \?) echo "Invalid option -$OPTARG; please set a valid compiler using -c command line option" >&2
+    exit 1
+    ;;
+    t) timestep="$OPTARG"
+    ;;
+    \?) echo "Invalid option -$OPTARG; please select a valid timestep using -t command line option" >&2
+    exit 1
+    ;;
+    m) mach="$OPTARG"
+    ;;
+    \?) echo "Invalid option -$OPTARG; please select a valid machine using -m command line option" >&2
+    exit 1
+    ;;
+    p) code_root="$OPTARG"
+    ;;
+    \?) echo "Invalid option -$OPTARG; please select a valid path using -p command line option" >&2
+    exit 1
+    ;;
+    d) data_dest="$OPTARG"
+    ;;
+    \?) echo "Invalid option -$OPTARG; please select a valid data destination using -d command line option" >&2
+    exit 1
+    ;;
+    s) share_dest="$OPTARG"
+    ;;
+    \?) echo "Invalid option -$OPTARG; please select a valid shared data destination using -s command line option" >&2
+    exit 1
+    ;;
+  esac
+
+  case $OPTARG in
+    -*) echo "Option $opt needs a valid argument"
+    exit 1
+    ;;
+  esac
+done
+
+resolution_pattern="^ne[0-9].*$"
+if [ -z "${resolution}" ]; then
+    echo "resolution is not set, please set it using -r command line option"
+    exit 1
+elif [[ ! $resolution =~ $resolution_pattern ]];
+then
+    echo "Please provide a valid resolution as the first command line parameter."
+    exit 1
+fi
+
+if [ -z "${compiler}" ]; then
+    echo "Compiler is not set, please set it using -c command line option"
+    exit 1
+fi
+
+if [ -z "${timestep}" ]; then
+    echo "Timestep is not set, please set it using -t command line option"
+    exit 1
+fi
+
+if [ -z "${mach}" ]; then
+    echo "Machine is not set, please set it using -m command line option"
+    exit 1
+fi
+
+if [ -z "${code_root}" ]; then
+    echo "Code root path is not set, please set it using -p command line option"
+    exit 1
+fi
+
+if [ -z "${data_dest}" ]; then
+    echo "Data destination path is not set, please set it using -d command line option"
+    exit 1
+fi
+
+if [ -z "${share_dest}" ]; then
+    echo "Shared data destination path is not set, please set it using -s command line option"
+    exit 1
+fi
+
+
 #--------------------------
 # Start the script
 #--------------------------
-main $1
+main 
