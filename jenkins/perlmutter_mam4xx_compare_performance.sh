@@ -15,13 +15,16 @@ main() {
     compiler=gnugpu
 
     #set resolution
-    resolution=ne4pg2_ne4pg2
+    resolution=$1
 
     #set timestep
     timestep=5
 
     #set data destination
     data_dest="/global/homes/l/litzingj/performance_data"
+
+    #set shared data destination
+    share_dest="/global/cfs/cdirs/e3sm/www/litz372/performance_data"
 
     #load modules
     module load cray-python/3.11.7
@@ -31,11 +34,11 @@ main() {
     #---------------------------------------------------------------
 
     #TODO: 
-    ./mam4xx_compare_performance.sh -r $resolution -c $compiler -t $timestep -m $mach -p $code_root -d $data_dest
+    /global/homes/l/litzingj/E3SM_test_scripts/jenkins/mam4xx_compare_performance.sh -r $resolution -c $compiler -t $timestep -m $mach -p $code_root -d $data_dest -s $share_dest
 
 }
 
 #--------------------------
 # Start the script
 #--------------------------
-main
+main $1
