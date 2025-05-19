@@ -62,6 +62,6 @@ plt.ylabel('Throughput (simulated_years/day)')
 plt.xticks(rotation=45)
 plt.grid(True)
 plt.legend(['EAMxx default', 'EAMxx+MAM4xx'])
-test_specs = "Machine: " + machine + "\nResolution: " + resolution + "\nLength: " + timestep +  " time steps\nEAMxx Compset: " + eamxx_compset + "\nMAM4xx Compset: " + mam4xx_compset + "\nMAM4xx Average Model Cost: " + mam4xx_avg_cost + "\nEAMxx Average Model Cost: " + eamxx_avg_cost
+test_specs = "Machine: " + machine + "\nResolution: " + resolution + "\nSimulation Length: " + timestep +  "\nEAMxx Compset: " + eamxx_compset + "\nMAM4xx Compset: " + mam4xx_compset + "\nMAM4xx Average Model Cost: " + mam4xx_avg_cost + "\nEAMxx Average Model Cost: " + eamxx_avg_cost
 plt.figtext(.95, .5, test_specs, ha="left")
-plt.savefig(destination + '/performance_comp_' + date_str + '_' + resolution + '.png', bbox_inches='tight')
+plt.savefig(destination + '/performance_comp_' + date_str + '_' + resolution + '_' + timestep + '.png', bbox_inches='tight')

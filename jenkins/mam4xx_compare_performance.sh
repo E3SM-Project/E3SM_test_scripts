@@ -25,7 +25,7 @@ main() {
     #---------------------------------------------------------------
 
     #Name of the test
-    testname="SMS_Ln${timestep}"
+    testname="SMS_${timestep}"
     
     #compset for MAM4xx
     compset_mam4xx="F2010-EAMxx-MAM4xx"
@@ -112,15 +112,15 @@ main() {
 
     #copy plot to /compyfs/www
     if [ "$mach" = "compy" ]; then
-      cp ${data_dest}/performance_comp_${DATE}_${resolution}.png ${share_dest}/performance_comp_${resolution}.png
-      echo "visit https://compy-dtn.pnl.gov/litz372/performance_data/performance_comp_${resolution}.png for the results!"
+      cp ${data_dest}/performance_comp_${DATE}_${resolution}_${timestep}.png ${share_dest}/performance_comp_${resolution}_${timestep}.png
+      echo "visit https://compy-dtn.pnl.gov/litz372/performance_data/performance_comp_${resolution}_${timestep}.png for the results!"
     fi
 
     #copy plot to /cfs/e3sm/www
     if [ "$mach" = "pm-gpu" ]; then
-      cp ${data_dest}/performance_comp_${DATE}_${resolution}.png ${share_dest}/performance_comp_${resolution}.png
+      cp ${data_dest}/performance_comp_${DATE}_${resolution}.png ${share_dest}/performance_comp_${resolution}_${timestep}.png
       chmod 775 ${share_dest}/performance_comp_${resolution}.png
-      echo "visit https://portal.nersc.gov/cfs/e3sm/litz372/performance_data/performance_comp_${resolution}.png for the results!"
+      echo "visit https://portal.nersc.gov/cfs/e3sm/litz372/performance_data/performance_comp_${resolution}_${timestep}.png for the results!"
     fi
 }
 

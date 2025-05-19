@@ -18,10 +18,10 @@ main() {
     resolution=$1
 
     #set timestep
-    timestep=5
+    timestep=Ld5
 
     #set data destination
-    data_dest="/global/homes/l/litzingj/performance_data"
+    data_dest="/global/homes/l/litzingj/performance_data/${timestep}"
 
     #set shared data destination
     share_dest="/global/cfs/cdirs/e3sm/www/litz372/performance_data"
