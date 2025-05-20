@@ -11,3 +11,4 @@ module load cmake/3.14.2-gvwazz3
 RUNSCRIPT_FLAGS="--scratch-root /lcrc/group/e3sm2/`whoami`/scratch/anvil"
 
 source /lcrc/soft/climate/e3sm-unified/load_e3sm_unified_1.11.1_anvil.sh
+export CIME_MODEL=e3sm
