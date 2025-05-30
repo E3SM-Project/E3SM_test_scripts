@@ -5,4 +5,4 @@ export SCRIPTROOT=$( cd "$( dirname "${BASH_SOURCE[0]}" )" && cd .. && pwd )
 export CIME_MACHINE=aurora
 source $SCRIPTROOT/util/setup_common.sh
 
-$RUNSCRIPT -j 4 -t e3sm_eamxx_v1 $1 || exit 0
+$RUNSCRIPT -j 4 -t e3sm_eamxx_v1_release $1 || exit 0
