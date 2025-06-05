@@ -32,6 +32,7 @@ main() {
     #load modules
     source /etc/profile.d/modules.sh
     module load python/3.11.5
+    source ${code_root}/../.venv/bin/activate
 
     #---------------------------------------------------------------
     # User-defined configuration ENDs
