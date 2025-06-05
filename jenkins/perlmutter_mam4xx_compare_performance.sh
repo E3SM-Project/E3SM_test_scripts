@@ -6,7 +6,7 @@ main() {
     # User-defined configuration
     #---------------------------------------------------------------
     #path to E3SM
-    code_root="/global/homes/l/litzingj/E3SM"
+    code_root="/global/cfs/projectdirs/e3sm/litzingj/E3SM"
     
     #machine to run the test on
     mach="pm-gpu"
@@ -21,7 +21,7 @@ main() {
     simulation_length=Ld5
 
     #directory for all the past and current data
-    data_dest="/global/homes/l/litzingj/performance_data/${simulation_length}"
+    data_dest="/global/cfs/projectdirs/e3sm/litzingj/performance_data/${simulation_length}"
 
     #path where the latest time series plot is saved, accessible to the whole project
     share_dest="/global/cfs/cdirs/e3sm/www/litz372/performance_data"
@@ -31,13 +31,14 @@ main() {
 
     #load modules
     module load cray-python/3.11.7
+    source ${code_root}/../venv/bin/activate
 
     #---------------------------------------------------------------
     # User-defined configuration ENDs
     #---------------------------------------------------------------
 
     #TODO: 
-    /global/homes/l/litzingj/E3SM_test_scripts/jenkins/mam4xx_compare_performance.sh -r $resolution -c $compiler -t $simulation_length -m $mach -p $code_root -d $data_dest -s $share_dest -u $share_url
+    /global/cfs/projectdirs/e3sm/litzingj/E3SM_test_scripts/jenkins/mam4xx_compare_performance.sh -r $resolution -c $compiler -t $simulation_length -m $mach -p $code_root -d $data_dest -s $share_dest -u $share_url
 
 }
 
