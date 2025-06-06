@@ -106,12 +106,13 @@ main() {
 
     # do the plotting
     cd ${parent_dir}
+    source .venv/bin/activate
     cd E3SM_test_scripts/jenkins
     python3 compy_plot_compare_performance.py -r $resolution -m $mach -e $compset_eamxx -x $compset_mam4xx -d $data_dest -t $simulation_length
 
     #copy plot to www dir
     cp ${data_dest}/performance_comp_${DATE}_${resolution}_${simulation_length}.png ${share_dest}/performance_comp_${resolution}_${simulation_length}.png
-    chmod 775 ${share_dest}/performance_comp_${resolution}.png
+    chmod 775 ${share_dest}/performance_comp_${resolution}_${simulation_length}.png
     echo "visit ${share_url} for the results!"
 
 }
