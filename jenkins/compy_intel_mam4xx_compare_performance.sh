@@ -33,6 +33,10 @@ main() {
     source /etc/profile.d/modules.sh
     module load python/3.11.5
 
+    ulimit -d unlimited
+    ulimit -s unlimited
+    ulimit -c unlimited
+
     #---------------------------------------------------------------
     # User-defined configuration ENDs
     #---------------------------------------------------------------
