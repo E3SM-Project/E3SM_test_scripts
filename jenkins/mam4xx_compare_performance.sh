@@ -108,7 +108,7 @@ main() {
     cd ${parent_dir}
     source .venv/bin/activate
     cd E3SM_test_scripts/jenkins
-    python3 compy_plot_compare_performance.py -r $resolution -m $mach -e $compset_eamxx -x $compset_mam4xx -d $data_dest -t $simulation_length
+    python3 mam4xx_plot_compare_performance.py -r $resolution -m $mach -e $compset_eamxx -x $compset_mam4xx -d $data_dest -t $simulation_length
 
     #copy plot to www dir
     cp ${data_dest}/performance_comp_${DATE}_${resolution}_${simulation_length}.png ${share_dest}/performance_comp_${resolution}_${simulation_length}.png
