@@ -52,21 +52,18 @@ main() {
     case=SMS_$pe_$runtime.$resolution.$compset.${machine}_$compiler
 
     branch1=master
-#    branch2=taufiqhassan/eamxx/mamxx-time-interp-fix
 
     datestr=`date +'%Y%m%d_%H%M%S'`
     casename1=master
- #   casename2=mamxx-time-interp-fix
 
     code_root1=$workdir/E3SM-$casename1 
-#    code_root2=$workdir/E3SM-$casename2
 
     do_fetch_code=true
-    do_run_case=true  
+    do_run_case=true
 
     # If you only need to tweak the plot, set the plot_str to the date string of the run.
     do_plot=true 
-    # plot_str=20250503_173057
+    #plot_str=20250703_030001
 
     #---------------------------------------------------------------
     # User-defined configuration ENDs
@@ -74,7 +71,6 @@ main() {
 
     # Fetch code from GitHub 
     fetch_code $branch1 $code_root1 &
-#    fetch_code $branch2 $code_root2 &
     wait 
 
     if [ $? != 0 ]; then
@@ -84,7 +80,6 @@ main() {
 
     # Create SMS test case and run it 
     run_case $code_root1 $casename1 &
- #   run_case $code_root2 $casename2 &
     wait 
 
     if [ $? != 0 ]; then
@@ -102,12 +97,10 @@ main() {
     fi
 
     case_root1=$workdir/$case.${casename1}_${plot_str}  
-#    case_root2=$workdir/$case.${casename2}_${plot_str}
 
     python ${workdir}/E3SM_test_scripts/jenkins/mam4xx_compare_model_performance_plot.py \
         --case1 $case_root1 --casename1 $casename1 \
         --outdir $plotdir --html $html_address              
-#        --case2 $case_root2 --casename2 $casename2 \
 
     if [ $? != 0 ]; then
         echo "Error plotting model performance"
