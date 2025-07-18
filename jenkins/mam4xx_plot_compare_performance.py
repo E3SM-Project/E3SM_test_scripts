@@ -21,8 +21,8 @@ def parse_args(argv):
   parser.add_argument('-d', '--destination', metavar='d', type=ascii, nargs='+',
                      help='Destination to save plot')
 
-  parser.add_argument('-t', '--timestep', metavar='t', type=ascii, nargs='+',
-                     help='How many timesteps the simulations ran for')
+  parser.add_argument('-t', '--simulation_length', metavar='t', type=ascii, nargs='+',
+                     help='How many simulation_lengths the simulations ran for')
 
   args = vars(parser.parse_args())
   
@@ -31,13 +31,13 @@ def parse_args(argv):
   eamxx_compset = args["eamxx_compset"][0].strip("'""'")
   mam4xx_compset = args["mam4xx_compset"][0].strip("'""'")
   destination = args["destination"][0].strip("'""'")
-  timestep = args["timestep"][0].strip("'""'")
+  simulation_length = args["simulation_length"][0].strip("'""'")
 
-  return resolution, machine, eamxx_compset, mam4xx_compset, destination, timestep
+  return resolution, machine, eamxx_compset, mam4xx_compset, destination, simulation_length
 
 date_str = datetime.today().strftime('%Y-%m-%d')
 
-resolution, machine, eamxx_compset, mam4xx_compset, destination, timestep = parse_args(sys.argv[1:])
+resolution, machine, eamxx_compset, mam4xx_compset, destination, simulation_length = parse_args(sys.argv[1:])
 
 # Load data from CSV file into a DataFrame
 eamxx_df = pd.read_csv(destination + '/eamxx_performance_' + resolution + '.csv', header=None, names=['date', 'throughput', 'model_cost'])
@@ -62,6 +62,6 @@ plt.ylabel('Throughput (simulated_years/day)')
 plt.xticks(rotation=45)
 plt.grid(True)
 plt.legend(['EAMxx default', 'EAMxx+MAM4xx'])
-test_specs = "Machine: " + machine + "\nResolution: " + resolution + "\nLength: " + timestep +  " time steps\nEAMxx Compset: " + eamxx_compset + "\nMAM4xx Compset: " + mam4xx_compset + "\nMAM4xx Average Model Cost: " + mam4xx_avg_cost + "\nEAMxx Average Model Cost: " + eamxx_avg_cost
+test_specs = "Machine: " + machine + "\nResolution: " + resolution + "\nSimulation Length: " + simulation_length +  "\nEAMxx Compset: " + eamxx_compset + "\nMAM4xx Compset: " + mam4xx_compset + "\nMAM4xx Average Model Cost: " + mam4xx_avg_cost + "\nEAMxx Average Model Cost: " + eamxx_avg_cost
 plt.figtext(.95, .5, test_specs, ha="left")
-plt.savefig(destination + '/performance_comp_' + date_str + '_' + resolution + '.png', bbox_inches='tight')
+plt.savefig(destination + '/performance_comp_' + date_str + '_' + resolution + '_' + simulation_length + '.png', bbox_inches='tight')
