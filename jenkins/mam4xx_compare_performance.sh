@@ -25,7 +25,7 @@ main() {
     #---------------------------------------------------------------
 
     #Name of the test
-    testname="SMS_Ln${timestep}"
+    testname="SMS_${simulation_length}"
     
     #compset for MAM4xx
     compset_mam4xx="F2010-EAMxx-MAM4xx"
@@ -108,13 +108,13 @@ main() {
     cd ${parent_dir}
     source .venv/bin/activate
     cd E3SM_test_scripts/jenkins
-    python3 compy_plot_compare_performance.py -r $resolution -m $mach -e $compset_eamxx -x $compset_mam4xx -d $data_dest -t $timestep
+    python3 mam4xx_plot_compare_performance.py -r $resolution -m $mach -e $compset_eamxx -x $compset_mam4xx -d $data_dest -t $simulation_length
 
-    #copy plot to /compyfs/www
-    if [ "$mach" = "compy" ]; then
-      cp ${data_dest}/performance_comp_${DATE}_${resolution}.png ${share_dest}/performance_comp_${resolution}.png
-      echo "visit https://compy-dtn.pnl.gov/litz372/performance_data/performance_comp_${resolution}.png for the results!"
-    fi
+    #copy plot to www dir
+    cp ${data_dest}/performance_comp_${DATE}_${resolution}_${simulation_length}.png ${share_dest}/performance_comp_${resolution}_${simulation_length}.png
+    chmod 775 ${share_dest}/performance_comp_${resolution}_${simulation_length}.png
+    echo "visit ${share_url} for the results!"
+
 }
 
 
@@ -201,7 +201,7 @@ wait_til_dir_created() {
 #-----------------------------
 
 #parse command line args
-while getopts ":r:c:t:m:p:d:s:" opt; do
+while getopts ":r:c:t:m:p:d:s:u:" opt; do
   case $opt in
     r) resolution="$OPTARG"
     ;;
@@ -213,9 +213,9 @@ while getopts ":r:c:t:m:p:d:s:" opt; do
     \?) echo "Invalid option -$OPTARG; please set a valid compiler using -c command line option" >&2
     exit 1
     ;;
-    t) timestep="$OPTARG"
+    t) simulation_length="$OPTARG"
     ;;
-    \?) echo "Invalid option -$OPTARG; please select a valid timestep using -t command line option" >&2
+    \?) echo "Invalid option -$OPTARG; please select a valid simulation_length using -t command line option" >&2
     exit 1
     ;;
     m) mach="$OPTARG"
@@ -236,6 +236,11 @@ while getopts ":r:c:t:m:p:d:s:" opt; do
     s) share_dest="$OPTARG"
     ;;
     \?) echo "Invalid option -$OPTARG; please select a valid shared data destination using -s command line option" >&2
+    exit 1
+    ;;
+    u) share_url="$OPTARG"
+    ;;
+    \?) echo "Invalid option -$OPTARG; please provide a shared data url using -u command line option" >&2
     exit 1
     ;;
   esac
@@ -262,7 +267,7 @@ if [ -z "${compiler}" ]; then
     exit 1
 fi
 
-if [ -z "${timestep}" ]; then
+if [ -z "${simulation_length}" ]; then
     echo "Timestep is not set, please set it using -t command line option"
     exit 1
 fi
@@ -286,6 +291,12 @@ if [ -z "${share_dest}" ]; then
     echo "Shared data destination path is not set, please set it using -s command line option"
     exit 1
 fi
+
+if [ -z "${share_url}" ]; then
+    echo "Shared data url is not set, please set it using -u command line option"
+    exit 1
+fi
+
 
 
 #--------------------------
