@@ -1,1 +1,0 @@
-cori-knl_setup.sh
