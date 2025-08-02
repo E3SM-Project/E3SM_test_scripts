@@ -42,7 +42,8 @@ main() {
     fi
 
     compset=F2010-EAMxx-MAM4xx   #F2010-SCREAMv1 
-    resolution=ne4pg2_oQU480 
+#    resolution=ne4pg2_oQU480 
+    resolution=ne30pg2_ne30pg2
     pe=P32
     runtime=Ln5 
     queue=debug

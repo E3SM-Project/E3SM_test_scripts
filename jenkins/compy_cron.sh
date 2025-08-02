@@ -33,6 +33,10 @@ main() {
     source /etc/profile.d/modules.sh
     module load python/3.11.5
 
+    ulimit -d unlimited
+    ulimit -s unlimited
+    ulimit -c unlimited
+
     #---------------------------------------------------------------
     # User-defined configuration ENDs
     #---------------------------------------------------------------
@@ -41,7 +45,7 @@ main() {
     # RUN NE30 SIMULATION 
     #---------------------------------------------------------------
 
-    #/compyfs/litz372/e3sm_scratch/performance_testing/E3SM_test_scripts/jenkins/mam4xx_compare_performance.sh -r $resolution -c $compiler -t $simulation_length -m $mach -p $code_root -d $data_dest -s $share_dest -u $share_url_ne30
+    /compyfs/litz372/e3sm_scratch/performance_testing/E3SM_test_scripts/jenkins/mam4xx_compare_performance.sh -r $resolution -c $compiler -t $simulation_length -m $mach -p $code_root -d $data_dest -s $share_dest -u $share_url_ne30
 
     #---------------------------------------------------------------
     # RUN NE4 SIMULATION 
@@ -49,13 +53,15 @@ main() {
 
     resolution=ne4pg2_ne4pg2
     share_url_ne4="https://compy-dtn.pnl.gov/litz372/performance_data/performance_comp_${resolution}_${simulation_length}.png"
-    #/compyfs/litz372/e3sm_scratch/performance_testing/E3SM_test_scripts/jenkins/mam4xx_compare_performance.sh -r $resolution -c $compiler -t $simulation_length -m $mach -p $code_root -d $data_dest -s $share_dest -u $share_url_ne4
+    /compyfs/litz372/e3sm_scratch/performance_testing/E3SM_test_scripts/jenkins/mam4xx_compare_performance.sh -r $resolution -c $compiler -t $simulation_length -m $mach -p $code_root -d $data_dest -s $share_dest -u $share_url_ne4
 
     #---------------------------------------------------------------
     # RUN PERFORMANCE BREAKDOWN 
     #---------------------------------------------------------------
 
-    #/compyfs/litz372/e3sm_scratch/compare_model_performance/E3SM_test_scripts/jenkins/compy_model_performance.sh
+    module unload python
+    module load python/miniconda4.12.0
+    /compyfs/litz372/e3sm_scratch/compare_model_performance/E3SM_test_scripts/jenkins/compy_model_performance.sh
 
     #---------------------------------------------------------------
     # APPEND LINE GRAPHS TO BREAKDOWN 
@@ -67,8 +73,8 @@ main() {
     echo $share_url_ne4 
     echo $share_url_ne30
     echo $output_graph
-    python3 plot_html.py -i ${share_url_ne4} -o ${output_graph} 
-    python3 plot_html.py -i ${share_url_ne30} -o ${output_graph} 
+    python3 /compyfs/litz372/e3sm_scratch/compare_model_performance/E3SM_test_scripts/jenkins/plot_html.py -i ${share_url_ne4} -o ${output_graph} 
+    python3 /compyfs/litz372/e3sm_scratch/compare_model_performance/E3SM_test_scripts/jenkins/plot_html.py -i ${share_url_ne30} -o ${output_graph} 
 
 }
 
