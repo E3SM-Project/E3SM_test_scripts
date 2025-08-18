@@ -6,7 +6,9 @@ main() {
     # User-defined configuration
     #---------------------------------------------------------------
     #path to E3SM
+    #code_root="/pscratch/sd/e/e3smtest/jenkins/workspace/ACME_Perlmutter_mam4xx_compare_performance/E3SM"
     code_root="/global/cfs/projectdirs/e3sm/litzingj/E3SM"
+    fetch_root=false 
     
     #machine to run the test on
     mach="pm-gpu"
@@ -38,7 +40,7 @@ main() {
     #---------------------------------------------------------------
 
     #TODO: 
-    /global/cfs/projectdirs/e3sm/litzingj/E3SM_test_scripts/jenkins/mam4xx_compare_performance.sh -r $resolution -c $compiler -t $simulation_length -m $mach -p $code_root -d $data_dest -s $share_dest -u $share_url
+    /global/cfs/projectdirs/e3sm/litzingj/E3SM_test_scripts/jenkins/mam4xx_compare_performance.sh -r $resolution -c $compiler -t $simulation_length -m $mach -p $code_root -f $fetch_root -d $data_dest -s $share_dest -u $share_url
 
 }
 
