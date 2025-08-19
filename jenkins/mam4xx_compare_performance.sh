@@ -135,16 +135,8 @@ check_if_dir_exists () {
 #Update the E3SM repo by hard reseting to the latest master
 update_e3sm () {
     echo "Updating the E3SM repo..."
-    pwd
-    ls
-    git remote -v
-    echo "fetching origin..."
-    git fetch origin 
-    echo "fetch over https..."
-    git fetch https
-    git checkout master 
     echo "  Reset code to the latest master ..."
-    git reset --hard origin/master
+    git fetch origin && git checkout master && git reset --hard origin/master
 
     echo "  Update submodules..."
     git submodule deinit -f . && git submodule update --init --recursive
