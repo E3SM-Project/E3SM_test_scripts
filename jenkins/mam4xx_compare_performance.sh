@@ -47,7 +47,9 @@ main() {
     cd $code_root
 
     #reset code to the latest master
-    update_e3sm
+    if $fetch_root; then
+      update_e3sm
+    fi
 
     #create directory for tests from today
     date_str="`date +'%m-%d-%Y__%H_%M_%S'`"
@@ -201,7 +203,7 @@ wait_til_dir_created() {
 #-----------------------------
 
 #parse command line args
-while getopts ":r:c:t:m:p:d:s:u:" opt; do
+while getopts ":r:c:t:m:p:f:d:s:u:" opt; do
   case $opt in
     r) resolution="$OPTARG"
     ;;
@@ -226,6 +228,11 @@ while getopts ":r:c:t:m:p:d:s:u:" opt; do
     p) code_root="$OPTARG"
     ;;
     \?) echo "Invalid option -$OPTARG; please select a valid path using -p command line option" >&2
+    exit 1
+    ;;
+    f) fetch_root="$OPTARG"
+    ;;
+    \?) echo "Invalid option -$OPTARG; please select a valid boolean using -f command line option" >&2
     exit 1
     ;;
     d) data_dest="$OPTARG"
@@ -279,6 +286,11 @@ fi
 
 if [ -z "${code_root}" ]; then
     echo "Code root path is not set, please set it using -p command line option"
+    exit 1
+fi
+
+if [ -z "${fetch_root}" ]; then
+    echo "Fetch code boolean is not set, please set it using -f command line option"
     exit 1
 fi
 
