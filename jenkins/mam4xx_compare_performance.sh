@@ -77,7 +77,12 @@ main() {
 
     #check if the EAMxx+MAM4xx test completed
     mam4xx_dir=${testname}.${resolution}.${compset_mam4xx}.${mach}_${compiler}.master_${date_str}
-    wait_for_run_completion $temp_dir/$mam4xx_dir
+  #  wait_for_run_completion $temp_dir/$mam4xx_dir
+    mam4xx_pass=$(wait_for_run_completion $temp_dir/$mam4xx_dir)
+    if ! $mam4xx_pass; then
+      echo "MAM4xx run FAILED. Stopping..."
+      exit
+    fi
     
     #Grab MAM4xx timing data
     cd $temp_dir/$mam4xx_dir/timing
@@ -88,7 +93,12 @@ main() {
 
     #check if the EAMxx test completed
     eamxx_dir=${testname}.${resolution}.${compset_eamxx}.${mach}_${compiler}.master_${date_str}
-    wait_for_run_completion $temp_dir/$eamxx_dir
+    eamxx_pass=$(wait_for_run_completion $temp_dir/$eamxx_dir)
+    if ! $eamxx_pass; then
+      echo "EAMxx run FAILED. Stopping..."
+      exit
+    fi
+
     cd $temp_dir/$eamxx_dir/timing
 
     #Grab EAMxx timing data
@@ -173,6 +183,8 @@ wait_for_run_completion () {
     local interval=60 # Seconds to wait between checks
     local elapsed=0
 
+    run_pass=true
+
     echo "Waiting for test run to complete in $case_dir..."
     wait_til_dir_created $case_dir
     cd "$case_dir" || { echo "Failed to enter $case_dir"; return 1; }
@@ -182,12 +194,18 @@ wait_for_run_completion () {
             if grep -q "Timing" CaseStatus; then
                 echo "Run complete! Timing info found in CaseStatus."
                 break
+            elif grep -q "FAIL" TestStatus; then
+                echo "Run failed. See log for more."
+                cat CaseStatus
+                run_pass=false
+                break
             fi
         fi
         echo "Still waiting... elapsed: $((elapsed/60)) min"
         sleep "$interval"
         (( elapsed += interval ))
     done
+    return $run_pass
 }
 
 wait_til_dir_created() {
