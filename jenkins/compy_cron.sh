@@ -29,6 +29,9 @@ main() {
     #url where the plot will be available - based on the share_dest
     share_url_ne30="https://compy-dtn.pnl.gov/litz372/performance_data/performance_comp_${resolution}_${simulation_length}.png"
 
+    #boolean if git should reset.....
+    fetch_root=true
+
     #load modules
     source /etc/profile.d/modules.sh
     module load python/3.11.5
@@ -45,15 +48,16 @@ main() {
     # RUN NE30 SIMULATION 
     #---------------------------------------------------------------
 
-    /compyfs/litz372/e3sm_scratch/performance_testing/E3SM_test_scripts/jenkins/mam4xx_compare_performance.sh -r $resolution -c $compiler -t $simulation_length -m $mach -p $code_root -d $data_dest -s $share_dest -u $share_url_ne30
+    /compyfs/litz372/e3sm_scratch/performance_testing/E3SM_test_scripts/jenkins/mam4xx_compare_performance.sh -r $resolution -c $compiler -t $simulation_length -m $mach -p $code_root -f $fetch_root -d $data_dest -s $share_dest -u $share_url_ne30
 
     #---------------------------------------------------------------
     # RUN NE4 SIMULATION 
     #---------------------------------------------------------------
 
     resolution=ne4pg2_ne4pg2
+    fetch_root=false
     share_url_ne4="https://compy-dtn.pnl.gov/litz372/performance_data/performance_comp_${resolution}_${simulation_length}.png"
-    /compyfs/litz372/e3sm_scratch/performance_testing/E3SM_test_scripts/jenkins/mam4xx_compare_performance.sh -r $resolution -c $compiler -t $simulation_length -m $mach -p $code_root -d $data_dest -s $share_dest -u $share_url_ne4
+    /compyfs/litz372/e3sm_scratch/performance_testing/E3SM_test_scripts/jenkins/mam4xx_compare_performance.sh -r $resolution -c $compiler -t $simulation_length -m $mach -p $code_root -f $fetch_root -d $data_dest -s $share_dest -u $share_url_ne4
 
     #---------------------------------------------------------------
     # RUN PERFORMANCE BREAKDOWN 
