@@ -8,6 +8,7 @@ main() {
     #path to E3SM
     code_root="/pscratch/sd/e/e3smtest/jenkins/workspace/ACME_Perlmutter_mam4xx_compare_performance/E3SM"
     #code_root="/global/cfs/projectdirs/e3sm/litzingj/E3SM"
+    #boolean if E3SM git should fetch and reset 
     hard_reset_E3SM=false 
     
     #machine to run the test on

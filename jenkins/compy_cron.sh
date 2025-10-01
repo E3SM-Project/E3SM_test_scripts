@@ -29,7 +29,7 @@ main() {
     #url where the plot will be available - based on the share_dest
     share_url_ne30="https://compy-dtn.pnl.gov/litz372/performance_data/performance_comp_${resolution}_${simulation_length}.png"
 
-    #boolean if git should reset.....
+    #boolean if E3SM git should fetch and reset 
     hard_reset_E3SM=true
 
     #load modules

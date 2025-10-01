@@ -306,7 +306,7 @@ if [ -z "${code_root}" ]; then
 fi
 
 if [ -z "${hard_reset_E3SM}" ]; then
-    echo "Fetch code boolean is not set, please set it using -f command line option"
+    echo "Boolean for fetching latest E3SM is not set, please set it using -f command line option"
     exit 1
 fi
 

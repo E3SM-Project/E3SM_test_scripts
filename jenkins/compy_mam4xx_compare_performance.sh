@@ -7,6 +7,7 @@ main() {
     #---------------------------------------------------------------
     #path to E3SM
     code_root="/compyfs/litz372/e3sm_scratch/performance_testing/E3SM"
+    #boolean if E3SM git should fetch and reset 
     hard_reset_E3SM=true
     
     #machine to run the test on
