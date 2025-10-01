@@ -77,8 +77,8 @@ main() {
     echo $share_url_ne4 
     echo $share_url_ne30
     echo $output_graph
-    python3 /compyfs/litz372/e3sm_scratch/compare_model_performance/E3SM_test_scripts/jenkins/plot_html.py -i ${share_url_ne4} -o ${output_graph} 
-    python3 /compyfs/litz372/e3sm_scratch/compare_model_performance/E3SM_test_scripts/jenkins/plot_html.py -i ${share_url_ne30} -o ${output_graph} 
+    python3 /compyfs/litz372/e3sm_scratch/compare_model_performance/E3SM_test_scripts/jenkins/mam4xx_append_plot.py -i ${share_url_ne4} -o ${output_graph} 
+    python3 /compyfs/litz372/e3sm_scratch/compare_model_performance/E3SM_test_scripts/jenkins/mam4xx_append_plot.py -i ${share_url_ne30} -o ${output_graph} 
 
 }
 
