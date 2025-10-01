@@ -47,7 +47,7 @@ main() {
     cd $code_root
 
     #reset code to the latest master
-    if $fetch_root; then
+    if $hard_reset_E3SM; then
       update_e3sm
     fi
 
@@ -246,7 +246,7 @@ while getopts ":r:c:t:m:p:f:d:s:u:" opt; do
     \?) echo "Invalid option -$OPTARG; please select a valid path using -p command line option" >&2
     exit 1
     ;;
-    f) fetch_root="$OPTARG"
+    f) hard_reset_E3SM="$OPTARG"
     ;;
     \?) echo "Invalid option -$OPTARG; please select a valid boolean using -f command line option" >&2
     exit 1
@@ -305,7 +305,7 @@ if [ -z "${code_root}" ]; then
     exit 1
 fi
 
-if [ -z "${fetch_root}" ]; then
+if [ -z "${hard_reset_E3SM}" ]; then
     echo "Fetch code boolean is not set, please set it using -f command line option"
     exit 1
 fi
