@@ -32,9 +32,12 @@ main() {
 
     #compset for EAMxx
     compset_eamxx="F2010-SCREAMv1"
+
+    #set test modifier to 72 levels
+    test_mod="eamxx-L72"
     
     echo "Configuration: "
-    echo "Test ${testname} on ${mach} with ${compiler} compiler"
+    echo "Test ${testname} on ${mach} with ${compiler} compiler and ${test_mod} modifier"
     echo "Resolution ${resolution} and compsets ${compset_mam4xx} and ${compset_eamxx}" 
 
     #---------------------------------------------------------------
@@ -67,16 +70,16 @@ main() {
 
     #Run E3SM tests
     echo "starting EAMxx+MAM4xx test..."
-    run_e3sm_test $resolution $compset_mam4xx $mach $compiler $testname $temp_dir
+    run_e3sm_test $resolution $compset_mam4xx $mach $compiler $testname $temp_dir $test_mod
 
     echo "starting EAMxx default test..."
-    run_e3sm_test $resolution $compset_eamxx $mach $compiler $testname $temp_dir
+    run_e3sm_test $resolution $compset_eamxx $mach $compiler $testname $temp_dir $test_mod
 
     #wait for the tests directories to be created
     sleep 120
 
     #check if the EAMxx+MAM4xx test completed
-    mam4xx_dir=${testname}.${resolution}.${compset_mam4xx}.${mach}_${compiler}.master_${date_str}
+    mam4xx_dir=${testname}.${resolution}.${compset_mam4xx}.${mach}_${compiler}.${test_mod}.master_${date_str}
     wait_for_run_completion $temp_dir/$mam4xx_dir
     mam4xx_pass=$?
     if [[ $mam4xx_pass -eq 1 ]]; then
@@ -92,7 +95,7 @@ main() {
     echo "EAMxx+MAM4xx Model Cost - ${mam4xx_cost}"
 
     #check if the EAMxx test completed
-    eamxx_dir=${testname}.${resolution}.${compset_eamxx}.${mach}_${compiler}.master_${date_str}
+    eamxx_dir=${testname}.${resolution}.${compset_eamxx}.${mach}_${compiler}.${test_mod}.master_${date_str}
     wait_for_run_completion $temp_dir/$eamxx_dir
     eamxx_pass=$?
     if [[ $eamxx_pass -eq 1 ]]; then
@@ -170,11 +173,12 @@ run_e3sm_test () {
     local compiler=$4
     local testname=$5
     local temp_dir=$6
+    local test_mod=$7
 
     #launch tests
     echo "Launching Test:"
-    echo "Creating test: ${testname}.${resolution}.${compset}"
-    ./create_test ${testname}.${resolution}.${compset} --compiler $compiler  \
+    echo "Creating test: ${testname}.${resolution}.${compset}.${mach}_${compiler}.${test_mod}"
+    ./create_test ${testname}.${resolution}.${compset}.${mach}_${compiler}.${test_mod} --compiler $compiler  \
     -p e3sm -t "master_${date_str}" --output-root "${temp_dir}" -m ${mach} &
 
 }
