@@ -118,7 +118,8 @@ main() {
     cat eamxx_performance_${resolution}.csv
 
     # do the plotting
-    cd ${parent_dir}
+    #cd ${parent_dir}
+    cd /global/cfs/projectdirs/e3sm/litzingj
     source .venv/bin/activate
     cd E3SM_test_scripts/jenkins
     python3 mam4xx_plot_compare_performance.py -r $resolution -m $mach -e $compset_eamxx -x $compset_mam4xx -d $data_dest -t $simulation_length

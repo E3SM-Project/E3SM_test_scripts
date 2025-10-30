@@ -34,7 +34,8 @@ main() {
 
     #load modules
     module load cray-python/3.11.7
-    source ${code_root}/../venv/bin/activate
+    #source ${code_root}/../venv/bin/activate
+    source /global/cfs/projectdirs/e3sm/litzingj/.venv/bin/activate
 
     #---------------------------------------------------------------
     # User-defined configuration ENDs
