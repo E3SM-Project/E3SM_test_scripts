@@ -7,7 +7,7 @@ export CIME_MACHINE=compy
 source $SCRIPTROOT/util/setup_common.sh
 
 # deactivate cime_env for python 2
-conda deactivate
+module unload python
 module load python/2.7.9
 
 $RUNSCRIPT --compiler intel --baseline-compare=yes -t e3sm_bgcprod
