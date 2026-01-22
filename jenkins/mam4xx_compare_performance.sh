@@ -32,9 +32,12 @@ main() {
 
     #compset for EAMxx
     compset_eamxx="F2010-SCREAMv1"
+
+    #set test modifier to 72 levels
+    test_mod="eamxx-L72"
     
     echo "Configuration: "
-    echo "Test ${testname} on ${mach} with ${compiler} compiler"
+    echo "Test ${testname} on ${mach} with ${compiler} compiler and ${test_mod} modifier"
     echo "Resolution ${resolution} and compsets ${compset_mam4xx} and ${compset_eamxx}" 
 
     #---------------------------------------------------------------
@@ -47,7 +50,7 @@ main() {
     cd $code_root
 
     #reset code to the latest master
-    if $fetch_root; then
+    if $hard_reset_E3SM; then
       update_e3sm
     fi
 
@@ -67,17 +70,22 @@ main() {
 
     #Run E3SM tests
     echo "starting EAMxx+MAM4xx test..."
-    run_e3sm_test $resolution $compset_mam4xx $mach $compiler $testname $temp_dir
+    run_e3sm_test $resolution $compset_mam4xx $mach $compiler $testname $temp_dir $test_mod
 
     echo "starting EAMxx default test..."
-    run_e3sm_test $resolution $compset_eamxx $mach $compiler $testname $temp_dir
+    run_e3sm_test $resolution $compset_eamxx $mach $compiler $testname $temp_dir $test_mod
 
     #wait for the tests directories to be created
     sleep 120
 
     #check if the EAMxx+MAM4xx test completed
-    mam4xx_dir=${testname}.${resolution}.${compset_mam4xx}.${mach}_${compiler}.master_${date_str}
+    mam4xx_dir=${testname}.${resolution}.${compset_mam4xx}.${mach}_${compiler}.${test_mod}.master_${date_str}
     wait_for_run_completion $temp_dir/$mam4xx_dir
+    mam4xx_pass=$?
+    if [[ $mam4xx_pass -eq 1 ]]; then
+      echo "MAM4xx run FAILED. Stopping..."
+      exit
+    fi
     
     #Grab MAM4xx timing data
     cd $temp_dir/$mam4xx_dir/timing
@@ -87,8 +95,14 @@ main() {
     echo "EAMxx+MAM4xx Model Cost - ${mam4xx_cost}"
 
     #check if the EAMxx test completed
-    eamxx_dir=${testname}.${resolution}.${compset_eamxx}.${mach}_${compiler}.master_${date_str}
+    eamxx_dir=${testname}.${resolution}.${compset_eamxx}.${mach}_${compiler}.${test_mod}.master_${date_str}
     wait_for_run_completion $temp_dir/$eamxx_dir
+    eamxx_pass=$?
+    if [[ $eamxx_pass -eq 1 ]]; then
+      echo "EAMxx run FAILED. Stopping..."
+      exit
+    fi
+
     cd $temp_dir/$eamxx_dir/timing
 
     #Grab EAMxx timing data
@@ -159,11 +173,12 @@ run_e3sm_test () {
     local compiler=$4
     local testname=$5
     local temp_dir=$6
+    local test_mod=$7
 
     #launch tests
     echo "Launching Test:"
-    echo "Creating test: ${testname}.${resolution}.${compset}"
-    ./create_test ${testname}.${resolution}.${compset} --compiler $compiler  \
+    echo "Creating test: ${testname}.${resolution}.${compset}.${mach}_${compiler}.${test_mod}"
+    ./create_test ${testname}.${resolution}.${compset}.${mach}_${compiler}.${test_mod} --compiler $compiler  \
     -p e3sm -t "master_${date_str}" --output-root "${temp_dir}" -m ${mach} &
 
 }
@@ -182,12 +197,17 @@ wait_for_run_completion () {
             if grep -q "Timing" CaseStatus; then
                 echo "Run complete! Timing info found in CaseStatus."
                 break
+            elif grep -q "FAIL" TestStatus; then
+                echo "Run failed. See log for more."
+                cat CaseStatus
+                return 1 
             fi
         fi
         echo "Still waiting... elapsed: $((elapsed/60)) min"
         sleep "$interval"
         (( elapsed += interval ))
     done
+    return 0 
 }
 
 wait_til_dir_created() {
@@ -230,7 +250,7 @@ while getopts ":r:c:t:m:p:f:d:s:u:" opt; do
     \?) echo "Invalid option -$OPTARG; please select a valid path using -p command line option" >&2
     exit 1
     ;;
-    f) fetch_root="$OPTARG"
+    f) hard_reset_E3SM="$OPTARG"
     ;;
     \?) echo "Invalid option -$OPTARG; please select a valid boolean using -f command line option" >&2
     exit 1
@@ -289,8 +309,8 @@ if [ -z "${code_root}" ]; then
     exit 1
 fi
 
-if [ -z "${fetch_root}" ]; then
-    echo "Fetch code boolean is not set, please set it using -f command line option"
+if [ -z "${hard_reset_E3SM}" ]; then
+    echo "Boolean for fetching latest E3SM is not set, please set it using -f command line option"
     exit 1
 fi
 
