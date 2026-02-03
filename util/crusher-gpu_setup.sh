@@ -1,1 +1,0 @@
-crusher_setup.sh
