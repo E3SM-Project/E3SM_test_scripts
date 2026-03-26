@@ -14,7 +14,7 @@ export OLD_PERF_ARCHIVE_DIR=${PERF_ARCHIVE_DIR}/../OLD_PERF
 # Following tag is used by the Perl script in naming the perf. archive directory
 export PROJ_SPACE_TAG=e3sm
 
-module load anaconda3/2020.11
+module load miniforge3/25.3.1
 export PACE_PYTHON3=1
 source $SCRIPTROOT/util/pace_archive.sh
 
