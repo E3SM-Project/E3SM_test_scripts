@@ -3,7 +3,7 @@
 HERE=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &> /dev/null && pwd)
 
 # top directory of all Polaris cronjob work
-export POLARIS_CRON_ROOT="/lus/flare/projects/$PROJECT/$USER/polaris_scratch/cron"
+export POLARIS_CRON_ROOT="/lus/flare/projects/E3SM_Dec/$USER/polaris_scratch/cron"
 
 mkdir -p $POLARIS_CRON_ROOT
 
