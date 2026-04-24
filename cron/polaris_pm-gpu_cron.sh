@@ -8,4 +8,4 @@ export POLARIS_CRON_ROOT="$PSCRATCH/polaris_scratch/cron/pm-gpu"
 mkdir -p $POLARIS_CRON_ROOT
 
 # launch polaris cronjob
-exec bash $HERE/polaris_cron.sh
+exec bash $HERE/polaris_cron.sh -m pm-gpu
