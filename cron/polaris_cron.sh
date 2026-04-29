@@ -2,23 +2,15 @@
 
 # Configuration
 export POLARIS_ROOT=$POLARIS_CRON_ROOT/polaris
-REMOTE_URL="https://github.com/E3SM-Project/polaris.git"
-BRANCH="main"
+#REMOTE_URL="https://github.com/E3SM-Project/polaris.git"
+#BRANCH="main"
+REMOTE_URL="https://github.com/grnydawn/polaris.git"
+BRANCH="ykim/copilot/cron-scripts"
 
-# Check existence and handle repository state
-if [ ! -d "$POLARIS_ROOT/.git" ]; then
-    echo "Repository not found. Cloning..."
-    git clone -b "$BRANCH" "$REMOTE_URL" "$POLARIS_ROOT"
-    cd "$POLARIS_ROOT" || exit
-else
-    echo "Repository exists. Updating to latest remote state..."
-    cd "$POLARIS_ROOT" || exit
-    
-    # Ensure we are on the correct branch and sync with origin
-    git fetch origin
-    git checkout "$BRANCH"
-    git reset --hard "origin/$BRANCH"
-fi
+rm -rf ${POLARIS_ROOT}
+
+git clone -b "$BRANCH" "$REMOTE_URL" "$POLARIS_ROOT"
+cd "$POLARIS_ROOT" || exit
 
 # Update specific submodules recursively
 echo "Updating submodules..."
