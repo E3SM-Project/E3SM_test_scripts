@@ -5,7 +5,7 @@ export POLARIS_ROOT=$POLARIS_CRON_ROOT/polaris
 #REMOTE_URL="https://github.com/E3SM-Project/polaris.git"
 #BRANCH="main"
 REMOTE_URL="https://github.com/grnydawn/polaris.git"
-BRANCH="ykim/copilot/cron-scripts"
+BRANCH="ykim/cron-scripts"
 
 rm -rf ${POLARIS_ROOT}
 
