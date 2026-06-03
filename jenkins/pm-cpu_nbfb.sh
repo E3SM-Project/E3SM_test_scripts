@@ -6,4 +6,4 @@ export CIME_MACHINE=pm-cpu
 export SCREAM_MACHINE=$CIME_MACHINE
 source $SCRIPTROOT/util/setup_common.sh
 
-$RUNSCRIPT -t e3sm_nbfb --compiler=intel -O master --baseline-compare --ignore-memleak --walltime 01:30:00
+$RUNSCRIPT -t e3sm_nbfb --compiler=intel --driver mct -O master --baseline-compare --ignore-memleak --walltime 01:30:00
