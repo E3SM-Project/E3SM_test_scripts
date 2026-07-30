@@ -2,6 +2,7 @@
 
 HERE=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &> /dev/null && pwd)
 
+source /etc/profile
 source /etc/bash.bashrc
 
 # top directory of all Polaris cronjob work
