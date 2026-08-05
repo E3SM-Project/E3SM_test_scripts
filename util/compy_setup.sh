@@ -1,3 +1,3 @@
 ulimit -c 0
 export PROJECT=e3sm
-module load python/3.11.5
+module load python/3.13.5
