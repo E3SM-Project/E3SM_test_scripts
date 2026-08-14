@@ -1,49 +1,25 @@
 #!/usr/bin/env python3
+
 """
-jira_bless_poller.py
+Poll the SES Jira project for open bless-test-results tickets and run
+bless_test_results for any ticket targeting this machine.
 
-Polls the SES Jira project for open bless-test-results requests and
-executes them on the machine named in each ticket.  After running,
-the ticket is commented with the command output and transitioned to
-resolved.
-
-Environment variables (required):
-  JIRA_EMAIL       - Atlassian account email
-  JIRA_API_TOKEN   - Atlassian API token
-                     (create one at https://id.atlassian.com/manage-profile/security/api-tokens)
-
-Environment variables (optional):
-  JIRA_MACHINE       - Override the machine name used for matching
-                       (default: socket.gethostname())
-  JIRA_NO_VERIFY_SSL - Set to '1' to disable SSL certificate verification
-                       (useful behind corporate TLS-inspecting proxies)
+Each ticket's test suites (comma-separated field) each get their own
+bless_test_results -t <suite> -f <case> ... invocation.  When all suites
+finish the ticket is commented with the command output and transitioned
+to Resolved.
 
 Jira fields read per ticket:
-  "List of Test Cases that DIFF'd"        - one regex pattern per line, passed to -f
-  "Machine"                                - the machine this ticket targets
-  "Test Suites - Developer & Integration"  - comma-separated list of test suites;
-                                             one bless_test_results command is run
-                                             per suite, using -t <suite>
-  "Action"                                 - checkbox/select: 'hists', 'nmls', or 'both'
-                                             hists -> --hist-only
-                                             nmls  -> -n
-                                             both  -> no extra flag (default)
+  "List of Test Cases that DIFF'd"        - one regex pattern per line -> -f
+  "Machine"                                - must match --machine
+  "Test Suites - Developer & Integration"  - comma-separated -> one run per suite (-t)
+  "Action"                                 - hists  -> --hist-only
+                                             nmls   -> -n
+                                             both   -> (no extra flag, default)
 """
 
-import base64
-import json
-import os
-import socket
-import ssl
-import subprocess
-import sys
-import urllib.error
-import urllib.parse
-import urllib.request
-
-# ---------------------------------------------------------------------------
-# Configuration
-# ---------------------------------------------------------------------------
+import argparse, base64, json, os, socket, ssl, subprocess, sys, urllib.error, urllib.parse, urllib.request
+import pathlib
 
 JIRA_BASE_URL = "https://e3sm.atlassian.net"
 PROJECT_KEY   = "SES"
@@ -54,44 +30,25 @@ FIELD_MACHINE = "Machine"
 FIELD_SUITES  = "Test Suites - Developer & Integration"
 FIELD_ACTION  = "Action"
 
-# Only tickets not yet resolved/done/closed are considered.
 JQL = (
     f"project = {PROJECT_KEY} "
     "AND status not in (Resolved, Done, Closed) "
     "ORDER BY created ASC"
 )
 
-# Transition names to try when resolving (first match wins, case-insensitive).
-RESOLVE_TRANSITION_NAMES = [
-    "resolved",
-    "resolve request",
-    "resolve",
-    "done",
-    "close",
-]
+RESOLVE_TRANSITION_NAMES = ["resolved", "resolve request", "resolve", "done", "close"]
 
-# ---------------------------------------------------------------------------
-# HTTP helpers
-# ---------------------------------------------------------------------------
+###############################################################################
+def _ssl_ctx():
+###############################################################################
+    ctx = ssl.create_default_context()
+    ctx.check_hostname = False
+    ctx.verify_mode    = ssl.CERT_NONE
+    return ctx
 
-def _ssl_context():
-    if os.environ.get("JIRA_NO_VERIFY_SSL", "").strip() == "1":
-        ctx = ssl.create_default_context()
-        ctx.check_hostname = False
-        ctx.verify_mode = ssl.CERT_NONE
-        return ctx
-    return None
-
-
-def _auth_headers():
-    email = os.environ.get("JIRA_EMAIL", "").strip()
-    token = os.environ.get("JIRA_API_TOKEN", "").strip()
-    if not email or not token:
-        sys.exit(
-            "Error: JIRA_EMAIL and JIRA_API_TOKEN must be set.\n"
-            "  export JIRA_EMAIL=you@example.com\n"
-            "  export JIRA_API_TOKEN=<token>"
-        )
+###############################################################################
+def _auth_headers(email, token):
+###############################################################################
     creds = base64.b64encode(f"{email}:{token}".encode()).decode()
     return {
         "Authorization": f"Basic {creds}",
@@ -99,48 +56,47 @@ def _auth_headers():
         "Accept":        "application/json",
     }
 
-
+###############################################################################
 def _http(method, path, headers, payload=None, params=None):
+###############################################################################
     url = f"{JIRA_BASE_URL}{path}"
     if params:
         url += "?" + urllib.parse.urlencode(params)
     data = json.dumps(payload).encode() if payload is not None else None
     req  = urllib.request.Request(url, data=data, headers=headers, method=method)
     try:
-        with urllib.request.urlopen(req, context=_ssl_context()) as resp:
+        with urllib.request.urlopen(req, context=_ssl_ctx()) as resp:
             body = resp.read()
             return json.loads(body) if body else {}
     except urllib.error.HTTPError as exc:
         body = exc.read().decode(errors="replace")
         raise RuntimeError(f"HTTP {exc.code} {method} {url}: {body}") from exc
 
-
-def jira_get(path, headers, params=None):
+###############################################################################
+def _jira_get(path, headers, params=None):
+###############################################################################
     return _http("GET", path, headers, params=params)
 
-
-def jira_post(path, headers, payload):
+###############################################################################
+def _jira_post(path, headers, payload):
+###############################################################################
     return _http("POST", path, headers, payload=payload)
 
-# ---------------------------------------------------------------------------
-# Jira field/issue helpers
-# ---------------------------------------------------------------------------
-
+###############################################################################
 def discover_field_ids(headers):
-    """Return {display_name: field_id} for every field in the instance."""
-    return {f["name"]: f["id"] for f in jira_get("/rest/api/3/field", headers)}
+###############################################################################
+    """Return {display_name: field_id} for every field in the Jira instance."""
+    return {f["name"]: f["id"] for f in _jira_get("/rest/api/3/field", headers)}
 
-
+###############################################################################
 def search_issues(headers, jql, extra_field_ids):
-    """Fetch all issues matching *jql*, requesting summary + extra_field_ids."""
+###############################################################################
+    """Fetch all issues matching jql, requesting summary + extra_field_ids."""
     all_issues, start_at = [], 0
     wanted = ",".join(["summary"] + extra_field_ids)
     while True:
-        page = jira_get("/rest/api/3/search", headers, {
-            "jql":        jql,
-            "startAt":    start_at,
-            "maxResults": 50,
-            "fields":     wanted,
+        page  = _jira_get("/rest/api/3/search", headers, {
+            "jql": jql, "startAt": start_at, "maxResults": 50, "fields": wanted,
         })
         chunk = page.get("issues", [])
         all_issues.extend(chunk)
@@ -149,48 +105,40 @@ def search_issues(headers, jql, extra_field_ids):
             break
     return all_issues
 
-
+###############################################################################
 def add_comment(headers, issue_key, text):
-    """Post a plain-text comment (Atlassian Document Format)."""
-    jira_post(f"/rest/api/3/issue/{issue_key}/comment", headers, {
+###############################################################################
+    """Post a plain-text comment in Atlassian Document Format."""
+    _jira_post(f"/rest/api/3/issue/{issue_key}/comment", headers, {
         "body": {
-            "type":    "doc",
-            "version": 1,
-            "content": [
-                {
-                    "type":    "paragraph",
-                    "content": [{"type": "text", "text": text}],
-                }
-            ],
+            "type": "doc", "version": 1,
+            "content": [{"type": "paragraph", "content": [{"type": "text", "text": text}]}],
         }
     })
 
-
+###############################################################################
 def transition_issue(headers, issue_key):
+###############################################################################
     """Try each name in RESOLVE_TRANSITION_NAMES; return matched name or None."""
-    data       = jira_get(f"/rest/api/3/issue/{issue_key}/transitions", headers)
+    data       = _jira_get(f"/rest/api/3/issue/{issue_key}/transitions", headers)
     name_to_id = {t["name"].lower(): t["id"] for t in data.get("transitions", [])}
     for name in RESOLVE_TRANSITION_NAMES:
         if name in name_to_id:
-            jira_post(f"/rest/api/3/issue/{issue_key}/transitions", headers, {
-                "transition": {"id": name_to_id[name]}
-            })
+            _jira_post(f"/rest/api/3/issue/{issue_key}/transitions", headers,
+                       {"transition": {"id": name_to_id[name]}})
             return name
     print(f"  [{issue_key}] WARNING: no resolve transition found. "
           f"Available: {list(name_to_id.keys())}")
     return None
 
-# ---------------------------------------------------------------------------
-# Field value extractors
-# ---------------------------------------------------------------------------
-
+###############################################################################
 def extract_text_lines(value):
-    """Return non-empty lines from a plain-text or ADF (rich-text) field."""
+###############################################################################
+    """Return non-empty lines from a plain-text or Atlassian Document Format field."""
     if value is None:
         return []
     if isinstance(value, str):
         return [ln.strip() for ln in value.splitlines() if ln.strip()]
-    # Atlassian Document Format
     if isinstance(value, dict) and value.get("type") == "doc":
         lines = []
         for block in value.get("content", []):
@@ -202,8 +150,9 @@ def extract_text_lines(value):
         return lines
     return []
 
-
+###############################################################################
 def extract_machine_names(value):
+###############################################################################
     """Return a list of lowercase machine name strings from any Jira field shape."""
     if value is None:
         return []
@@ -219,16 +168,14 @@ def extract_machine_names(value):
         return names
     return [str(value).lower()]
 
-
+###############################################################################
 def extract_action(value):
+###############################################################################
     """
-    Map a checkbox/select Jira field to one of 'hists', 'nmls', or 'both'.
-
-    For list (checkbox) fields, both boxes checked => 'both'.
-    Unrecognised or missing values default to 'both'.
+    Map a checkbox/select Jira field to 'hists', 'nmls', or 'both'.
+    Both checkboxes checked => 'both'.  Missing/unrecognised => 'both'.
     """
     VALID = {"hists", "nmls", "both"}
-
     if value is None:
         return "both"
     if isinstance(value, str):
@@ -238,11 +185,8 @@ def extract_action(value):
         v = (value.get("value") or value.get("name", "")).lower().strip()
         return v if v in VALID else "both"
     if isinstance(value, list):
-        selected = set()
-        for item in value:
-            if isinstance(item, dict):
-                v = (item.get("value") or item.get("name", "")).lower().strip()
-                selected.add(v)
+        selected = {(item.get("value") or item.get("name", "")).lower().strip()
+                    for item in value if isinstance(item, dict)}
         if "hists" in selected and "nmls" in selected:
             return "both"
         if "hists" in selected:
@@ -252,12 +196,10 @@ def extract_action(value):
         return "both"
     return "both"
 
-# ---------------------------------------------------------------------------
-# bless runner
-# ---------------------------------------------------------------------------
-
+###############################################################################
 def build_bless_cmd(suite, cases, action):
-    """Construct the bless_test_results argument list for one test suite."""
+###############################################################################
+    """Return the bless_test_results argv list for one test suite."""
     cmd = [BLESS_SCRIPT, "-t", suite]
     for case in cases:
         cmd += ["-f", case]
@@ -265,27 +207,16 @@ def build_bless_cmd(suite, cases, action):
         cmd.append("--hist-only")
     elif action == "nmls":
         cmd.append("-n")
-    # action == "both": no extra flag
     return cmd
 
+###############################################################################
+def poll_jira_bless(machine, email, token):
+###############################################################################
+    headers = _auth_headers(email, token)
+    machine = machine.lower()
 
-def run_bless(suite, cases, action):
-    cmd = build_bless_cmd(suite, cases, action)
-    print(f"  Running: {' '.join(cmd)}")
-    result = subprocess.run(cmd, capture_output=True, text=True)
-    return result.returncode, result.stdout + result.stderr
+    print(f"Polling {JIRA_BASE_URL} | project: {PROJECT_KEY} | machine: {machine}")
 
-# ---------------------------------------------------------------------------
-# main
-# ---------------------------------------------------------------------------
-
-def main():
-    headers         = _auth_headers()
-    current_machine = os.environ.get("JIRA_MACHINE", socket.gethostname()).lower()
-
-    print(f"Polling {JIRA_BASE_URL} | project: {PROJECT_KEY} | machine: {current_machine}")
-
-    # Map display names to REST field IDs
     print("Discovering field IDs...")
     field_map   = discover_field_ids(headers)
     cases_fid   = field_map.get(FIELD_CASES)
@@ -300,63 +231,58 @@ def main():
     if not suites_fid:
         sys.exit(f"Error: Jira field '{FIELD_SUITES}' not found in the instance.")
     if not action_fid:
-        print(f"[WARN] Field '{FIELD_ACTION}' not found; all tickets will default to action='both'.")
+        print(f"[WARN] Field '{FIELD_ACTION}' not found; defaulting action to 'both' for all tickets.")
 
-    fids    = [fid for fid in [cases_fid, machine_fid, suites_fid, action_fid] if fid]
-    issues  = search_issues(headers, JQL, fids)
+    fids   = [fid for fid in [cases_fid, machine_fid, suites_fid, action_fid] if fid]
+    issues = search_issues(headers, JQL, fids)
     print(f"Found {len(issues)} open ticket(s) in {PROJECT_KEY}.")
 
     processed = 0
     for issue in issues:
-        key    = issue["key"]
-        fields = issue["fields"]
+        key     = issue["key"]
+        fields  = issue["fields"]
         summary = fields.get("summary", "")
         print(f"\n[{key}] {summary}")
 
-        # Check machine match
         machine_names = extract_machine_names(fields.get(machine_fid))
         if not machine_names:
             print(f"  No machine set, skipping.")
             continue
-        if current_machine not in machine_names:
-            print(f"  Machine {machine_names} != '{current_machine}', skipping.")
+        if machine not in machine_names:
+            print(f"  Machine {machine_names} != '{machine}', skipping.")
             continue
 
-        # Extract cases
         cases = extract_text_lines(fields.get(cases_fid))
         if not cases:
             print(f"  No test cases found, skipping.")
             continue
 
-        # Extract test suites (comma-separated string)
         suites_raw = fields.get(suites_fid) or ""
-        if isinstance(suites_raw, str):
-            suites = [s.strip() for s in suites_raw.split(",") if s.strip()]
-        else:
-            suites = extract_text_lines(suites_raw)
+        suites = ([s.strip() for s in suites_raw.split(",") if s.strip()]
+                  if isinstance(suites_raw, str)
+                  else extract_text_lines(suites_raw))
         if not suites:
             print(f"  No test suites found, skipping.")
             continue
 
-        # Extract action
         action = extract_action(fields.get(action_fid) if action_fid else None)
 
         print(f"  suites : {suites}")
         print(f"  cases  : {cases}")
         print(f"  action : {action}")
 
-        suite_sections = []
-        overall_rc = 0
+        suite_sections, overall_rc = [], 0
         for suite in suites:
-            returncode, output = run_bless(suite, cases, action)
-            if returncode != 0:
-                overall_rc = returncode
-            status  = "SUCCESS" if returncode == 0 else f"FAILED (exit {returncode})"
-            cmd_str = " ".join(build_bless_cmd(suite, cases, action))
+            cmd    = build_bless_cmd(suite, cases, action)
+            print(f"  Running: {' '.join(cmd)}")
+            result = subprocess.run(cmd, capture_output=True, text=True)
+            if result.returncode != 0:
+                overall_rc = result.returncode
+            status = "SUCCESS" if result.returncode == 0 else f"FAILED (exit {result.returncode})"
             suite_sections.append(
                 f"--- Suite: {suite} ({status}) ---\n"
-                f"Command: {cmd_str}\n\n"
-                f"{output.strip()}"
+                f"Command: {' '.join(cmd)}\n\n"
+                f"{(result.stdout + result.stderr).strip()}"
             )
 
         overall_status = "SUCCESS" if overall_rc == 0 else f"FAILED (exit {overall_rc})"
@@ -364,14 +290,63 @@ def main():
 
         print(f"  Overall status: {overall_status}. Resolving ticket...")
         add_comment(headers, key, comment)
-        matched_transition = transition_issue(headers, key)
-        if matched_transition:
-            print(f"  Transitioned via '{matched_transition}'.")
+        matched = transition_issue(headers, key)
+        if matched:
+            print(f"  Transitioned via '{matched}'.")
 
         processed += 1
 
-    print(f"\nDone. {processed} ticket(s) processed on '{current_machine}'.")
+    print(f"\nDone. {processed} ticket(s) processed on '{machine}'.")
+    return processed >= 0
 
+###############################################################################
+def parse_command_line(args, description):
+###############################################################################
+    parser = argparse.ArgumentParser(
+        usage="""\n{0} --email <email> --token <token> [--machine <name>]
+OR
+{0} --help
+
+\033[1mEXAMPLES:\033[0m
+    \033[1;32m# Poll Jira for bless requests on the current machine\033[0m
+    > {0} --email you@example.com --token <api-token>
+
+    \033[1;32m# Specify a machine name explicitly\033[0m
+    > {0} --email you@example.com --token <api-token> --machine mappy
+""".format(pathlib.Path(args[0]).name),
+        description=description,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+
+    parser.add_argument(
+        "-e", "--email",
+        required=True,
+        help="Atlassian account email for Jira authentication. "
+             "Get an API token at https://id.atlassian.com/manage-profile/security/api-tokens",
+    )
+
+    parser.add_argument(
+        "-t", "--token",
+        required=True,
+        help="Atlassian API token for Jira authentication.",
+    )
+
+    parser.add_argument(
+        "-m", "--machine",
+        default=socket.gethostname(),
+        help="Machine name to match against Jira ticket Machine field "
+             "(default: current hostname).",
+    )
+
+    return parser.parse_args(args[1:])
+
+###############################################################################
+def _main_func(description):
+###############################################################################
+    success = poll_jira_bless(**vars(parse_command_line(sys.argv, description)))
+    sys.exit(0 if success else 1)
+
+###############################################################################
 
 if __name__ == "__main__":
-    main()
+    _main_func(__doc__)
