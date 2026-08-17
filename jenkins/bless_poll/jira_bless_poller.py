@@ -275,7 +275,7 @@ def test_connection(email, token):
         return False
 
 ###############################################################################
-def process_action(action, dry_run=False):
+def process_action(action, indent, dry_run=False):
 ###############################################################################
     """
     Parse and execute a single bless action string of the form:
@@ -286,7 +286,7 @@ def process_action(action, dry_run=False):
 
     parts = [p.strip() for p in action.split(",")]
     if len(parts) < 3:
-        print(f"      ERROR: action must have at least 3 comma-separated fields "
+        print(f"{indent}ERROR: action must have at least 3 comma-separated fields "
               f"(suite, task, case): {action!r}")
         return False
 
@@ -295,25 +295,26 @@ def process_action(action, dry_run=False):
     cases    = parts[2:]
 
     if task_raw not in TASK_MAP:
-        print(f"      ERROR: unknown task {task_raw!r}; expected one of {list(TASK_MAP.keys())}")
+        print(f"{indent}ERROR: unknown task {task_raw!r}; expected one of {list(TASK_MAP.keys())}")
         return False
 
     cmd = build_bless_cmd(suite, cases, TASK_MAP[task_raw])
 
     if dry_run:
-        print(f"      DRY-RUN: {' '.join(cmd)}")
+        print(f"{indent}DRY-RUN: {' '.join(cmd)}")
         return True
 
-    print(f"      Running: {' '.join(cmd)}")
+    print(f"{indent}Running: {' '.join(cmd)}")
     result = subprocess.run(cmd, capture_output=True, text=True)
     output = (result.stdout + result.stderr).strip()
     if output:
         print(output)
 
     if result.returncode != 0:
-        print(f"      FAILED with exit code {result.returncode}")
+        print(f"{indent}ERROR: {cmd} failed")
         return False
 
+    print(f"{indent}SUCCESS!")
     return True
 
 ###############################################################################
@@ -341,6 +342,7 @@ def poll_jira_bless(email, token, machine, dry_run):
 
     # Process each open issue
     processed = 0
+    errors = 0
     for issue in issues:
         indent  = "  "
         key     = issue["key"]
@@ -371,19 +373,18 @@ def poll_jira_bless(email, token, machine, dry_run):
 
         # Process actions
         indent += "  "
-        errors = 0
         for action in actions:
             action = action.strip()
             if action:
                 print(f"{indent}Processing action: {action}")
 
-                success = process_action(action, dry_run=dry_run)
+                success = process_action(action, indent + "  ", dry_run=dry_run)
                 if success:
                     processed += 1
                 else:
                     errors += 1
 
-    print(f"\nDone. Successfully {processed} ticket(s) processed on '{machine}'. There were {errors} errors.")
+    print(f"\nDone. Successfully processed {processed} actions on '{machine}'. There were {errors} errors.")
     return processed >= 0 and errors == 0
 
 ###############################################################################
