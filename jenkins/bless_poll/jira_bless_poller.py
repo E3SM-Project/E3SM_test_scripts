@@ -282,6 +282,9 @@ def test_connection(email, token):
         print("Connection test FAILED: one or more required fields not found.")
     return all_ok
 
+###############################################################################
+def poll_jira_bless(email, token, machine, dry_run):
+###############################################################################
 
     headers = _auth_headers(email, token)
     machine = machine.lower()
@@ -317,7 +320,7 @@ def test_connection(email, token):
 
         machine_names = extract_machine_names(fields.get(machine_fid))
         if not machine_names:
-            print(f"  No machine set, skipping.")
+            print("  No machine set, skipping.")
             continue
         if machine not in machine_names:
             print(f"  Machine {machine_names} != '{machine}', skipping.")
@@ -325,7 +328,7 @@ def test_connection(email, token):
 
         cases = extract_text_lines(fields.get(cases_fid))
         if not cases:
-            print(f"  No test cases found, skipping.")
+            print("  No test cases found, skipping.")
             continue
 
         suites_raw = fields.get(suites_fid) or ""
@@ -333,7 +336,7 @@ def test_connection(email, token):
                   if isinstance(suites_raw, str)
                   else extract_text_lines(suites_raw))
         if not suites:
-            print(f"  No test suites found, skipping.")
+            print("  No test suites found, skipping.")
             continue
 
         action = extract_action(fields.get(action_fid) if action_fid else None)
@@ -361,7 +364,7 @@ def test_connection(email, token):
                 )
 
         if dry_run:
-            print(f"  DRY-RUN: skipping Jira comment and transition.")
+            print("  DRY-RUN: skipping Jira comment and transition.")
         else:
             overall_status = "SUCCESS" if overall_rc == 0 else f"FAILED (exit {overall_rc})"
             comment = f"bless_test_results {overall_status}\n\n" + "\n\n".join(suite_sections)
