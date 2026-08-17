@@ -210,8 +210,55 @@ def build_bless_cmd(suite, cases, action):
     return cmd
 
 ###############################################################################
-def poll_jira_bless(machine, email, token):
+def test_connection(email, token):
 ###############################################################################
+    """Verify credentials and confirm the required Jira fields are reachable."""
+    headers = _auth_headers(email, token)
+
+    print(f"Testing connection to {JIRA_BASE_URL} ...")
+
+    # Verify authentication via the /myself endpoint
+    try:
+        myself = _jira_get("/rest/api/3/myself", headers)
+        print(f"  Auth OK  : logged in as {myself.get('displayName')} ({myself.get('emailAddress')})")
+    except RuntimeError as exc:
+        print(f"  Auth FAIL: {exc}")
+        return False
+
+    # Confirm the project exists
+    try:
+        proj = _jira_get(f"/rest/api/3/project/{PROJECT_KEY}", headers)
+        print(f"  Project  : {proj.get('name')} ({PROJECT_KEY}) found")
+    except RuntimeError as exc:
+        print(f"  Project FAIL: {exc}")
+        return False
+
+    # Confirm the required custom fields are present
+    field_map  = discover_field_ids(headers)
+    required   = [FIELD_CASES, FIELD_MACHINE, FIELD_SUITES]
+    optional   = [FIELD_ACTION]
+    all_ok     = True
+    for name in required:
+        fid = field_map.get(name)
+        if fid:
+            print(f"  Field OK : '{name}' -> {fid}")
+        else:
+            print(f"  Field MISSING (required): '{name}'")
+            all_ok = False
+    for name in optional:
+        fid = field_map.get(name)
+        if fid:
+            print(f"  Field OK : '{name}' -> {fid}")
+        else:
+            print(f"  Field MISSING (optional): '{name}'")
+
+    if all_ok:
+        print("Connection test passed.")
+    else:
+        print("Connection test FAILED: one or more required fields not found.")
+    return all_ok
+
+
     headers = _auth_headers(email, token)
     machine = machine.lower()
 
@@ -273,26 +320,32 @@ def poll_jira_bless(machine, email, token):
 
         suite_sections, overall_rc = [], 0
         for suite in suites:
-            cmd    = build_bless_cmd(suite, cases, action)
-            print(f"  Running: {' '.join(cmd)}")
-            result = subprocess.run(cmd, capture_output=True, text=True)
-            if result.returncode != 0:
-                overall_rc = result.returncode
-            status = "SUCCESS" if result.returncode == 0 else f"FAILED (exit {result.returncode})"
-            suite_sections.append(
-                f"--- Suite: {suite} ({status}) ---\n"
-                f"Command: {' '.join(cmd)}\n\n"
-                f"{(result.stdout + result.stderr).strip()}"
-            )
+            cmd = build_bless_cmd(suite, cases, action)
+            if dry_run:
+                print(f"  DRY-RUN: {' '.join(cmd)}")
+                suite_sections.append(f"--- Suite: {suite} (DRY-RUN) ---\nCommand: {' '.join(cmd)}")
+            else:
+                print(f"  Running: {' '.join(cmd)}")
+                result = subprocess.run(cmd, capture_output=True, text=True)
+                if result.returncode != 0:
+                    overall_rc = result.returncode
+                status = "SUCCESS" if result.returncode == 0 else f"FAILED (exit {result.returncode})"
+                suite_sections.append(
+                    f"--- Suite: {suite} ({status}) ---\n"
+                    f"Command: {' '.join(cmd)}\n\n"
+                    f"{(result.stdout + result.stderr).strip()}"
+                )
 
-        overall_status = "SUCCESS" if overall_rc == 0 else f"FAILED (exit {overall_rc})"
-        comment = f"bless_test_results {overall_status}\n\n" + "\n\n".join(suite_sections)
-
-        print(f"  Overall status: {overall_status}. Resolving ticket...")
-        add_comment(headers, key, comment)
-        matched = transition_issue(headers, key)
-        if matched:
-            print(f"  Transitioned via '{matched}'.")
+        if dry_run:
+            print(f"  DRY-RUN: skipping Jira comment and transition.")
+        else:
+            overall_status = "SUCCESS" if overall_rc == 0 else f"FAILED (exit {overall_rc})"
+            comment = f"bless_test_results {overall_status}\n\n" + "\n\n".join(suite_sections)
+            print(f"  Overall status: {overall_status}. Resolving ticket...")
+            add_comment(headers, key, comment)
+            matched = transition_issue(headers, key)
+            if matched:
+                print(f"  Transitioned via '{matched}'.")
 
         processed += 1
 
@@ -313,6 +366,12 @@ OR
 
     \033[1;32m# Specify a machine name explicitly\033[0m
     > {0} --email you@example.com --token <api-token> --machine mappy
+
+    \033[1;32m# Dry-run: print commands without executing or modifying tickets\033[0m
+    > {0} --email you@example.com --token <api-token> --dry-run
+
+    \033[1;32m# Test credentials and confirm all required Jira fields exist\033[0m
+    > {0} --email you@example.com --token <api-token> --test-connection
 """.format(pathlib.Path(args[0]).name),
         description=description,
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -338,12 +397,32 @@ OR
              "(default: current hostname).",
     )
 
+    parser.add_argument(
+        "-n", "--dry-run",
+        default=False,
+        action="store_true",
+        help="Print the bless commands that would be run without executing them "
+             "or modifying any Jira tickets.",
+    )
+
+    parser.add_argument(
+        "--test-connection",
+        default=False,
+        action="store_true",
+        help="Test authentication and confirm all required Jira fields are reachable, then exit.",
+    )
+
     return parser.parse_args(args[1:])
 
 ###############################################################################
 def _main_func(description):
 ###############################################################################
-    success = poll_jira_bless(**vars(parse_command_line(sys.argv, description)))
+    args = parse_command_line(sys.argv, description)
+    if args.test_connection:
+        success = test_connection(args.email, args.token)
+    else:
+        success = poll_jira_bless(**{k: v for k, v in vars(args).items()
+                                     if k != "test_connection"})
     sys.exit(0 if success else 1)
 
 ###############################################################################
