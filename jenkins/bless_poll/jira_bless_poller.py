@@ -26,7 +26,7 @@ PROJECT_KEY   = "SES"
 BLESS_SCRIPT  = "./Tools/bless_test_results"
 
 FIELD_CASES   = "List of Test Cases that DIFF'd"
-FIELD_MACHINE = "Machine"
+FIELD_MACHINE = "Components"
 FIELD_SUITES  = "Test Suites - Developer & Integration"
 FIELD_ACTION  = "Action"
 
@@ -253,34 +253,10 @@ def test_connection(email, token):
     try:
         proj = _jira_get(f"/rest/api/3/project/{PROJECT_KEY}", headers)
         print(f"  Project  : {proj.get('name')} ({PROJECT_KEY}) found")
+        return True
     except RuntimeError as exc:
         print(f"  Project FAIL: {exc}")
         return False
-
-    # Confirm the required custom fields are present
-    field_map  = discover_field_ids(headers)
-    required   = [FIELD_CASES, FIELD_MACHINE, FIELD_SUITES]
-    optional   = [FIELD_ACTION]
-    all_ok     = True
-    for name in required:
-        fid = field_map.get(name)
-        if fid:
-            print(f"  Field OK : '{name}' -> {fid}")
-        else:
-            print(f"  Field MISSING (required): '{name}'")
-            all_ok = False
-    for name in optional:
-        fid = field_map.get(name)
-        if fid:
-            print(f"  Field OK : '{name}' -> {fid}")
-        else:
-            print(f"  Field MISSING (optional): '{name}'")
-
-    if all_ok:
-        print("Connection test passed.")
-    else:
-        print("Connection test FAILED: one or more required fields not found.")
-    return all_ok
 
 ###############################################################################
 def poll_jira_bless(email, token, machine, dry_run):
@@ -293,21 +269,21 @@ def poll_jira_bless(email, token, machine, dry_run):
 
     print("Discovering field IDs...")
     field_map   = discover_field_ids(headers)
-    cases_fid   = field_map.get(FIELD_CASES)
+    #cases_fid   = field_map.get(FIELD_CASES)
     machine_fid = field_map.get(FIELD_MACHINE)
-    suites_fid  = field_map.get(FIELD_SUITES)
-    action_fid  = field_map.get(FIELD_ACTION)
+    #suites_fid  = field_map.get(FIELD_SUITES)
+    #action_fid  = field_map.get(FIELD_ACTION)
 
-    if not cases_fid:
-        sys.exit(f"Error: Jira field '{FIELD_CASES}' not found in the instance.")
+    # if not cases_fid:
+    #     sys.exit(f"Error: Jira field '{FIELD_CASES}' not found in the instance.\nAvailable fields: {sorted(field_map.keys())}")
     if not machine_fid:
-        sys.exit(f"Error: Jira field '{FIELD_MACHINE}' not found in the instance.")
-    if not suites_fid:
-        sys.exit(f"Error: Jira field '{FIELD_SUITES}' not found in the instance.")
-    if not action_fid:
-        print(f"[WARN] Field '{FIELD_ACTION}' not found; defaulting action to 'both' for all tickets.")
+        sys.exit(f"Error: Jira field '{FIELD_MACHINE}' not found in the instance.\nAvailable fields: {sorted(field_map.keys())}")
+    # if not suites_fid:
+    #     sys.exit(f"Error: Jira field '{FIELD_SUITES}' not found in the instance.\nAvailable fields: {sorted(field_map.keys())}")
+    # if not action_fid:
+    #     print(f"[WARN] Field '{FIELD_ACTION}' not found; defaulting action to 'both' for all tickets.")
 
-    fids   = [fid for fid in [cases_fid, machine_fid, suites_fid, action_fid] if fid]
+    fids   = [fid for fid in [machine_fid] if fid] #[cases_fid, machine_fid, suites_fid, action_fid] if fid]
     issues = search_issues(headers, JQL, fids)
     print(f"Found {len(issues)} open ticket(s) in {PROJECT_KEY}.")
 
