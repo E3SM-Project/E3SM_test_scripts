@@ -278,8 +278,42 @@ def test_connection(email, token):
 def process_action(action, dry_run=False):
 ###############################################################################
     """
-    Perform a specific bless action. Return success.
+    Parse and execute a single bless action string of the form:
+      "suite_name, task, case_glob [, case_glob ...]"
+    where task is NML, HIST, or BOTH.  Return True on success.
     """
+    TASK_MAP = {"NML": "nmls", "HIST": "hists", "BOTH": "both"}
+
+    parts = [p.strip() for p in action.split(",")]
+    if len(parts) < 3:
+        print(f"      ERROR: action must have at least 3 comma-separated fields "
+              f"(suite, task, case): {action!r}")
+        return False
+
+    suite    = parts[0]
+    task_raw = parts[1].upper()
+    cases    = parts[2:]
+
+    if task_raw not in TASK_MAP:
+        print(f"      ERROR: unknown task {task_raw!r}; expected one of {list(TASK_MAP.keys())}")
+        return False
+
+    cmd = build_bless_cmd(suite, cases, TASK_MAP[task_raw])
+
+    if dry_run:
+        print(f"      DRY-RUN: {' '.join(cmd)}")
+        return True
+
+    print(f"      Running: {' '.join(cmd)}")
+    result = subprocess.run(cmd, capture_output=True, text=True)
+    output = (result.stdout + result.stderr).strip()
+    if output:
+        print(output)
+
+    if result.returncode != 0:
+        print(f"      FAILED with exit code {result.returncode}")
+        return False
+
     return True
 
 ###############################################################################
