@@ -285,72 +285,72 @@ def poll_jira_bless(email, token, machine, dry_run):
 
     fids   = [fid for fid in [machine_fid] if fid] #[cases_fid, machine_fid, suites_fid, action_fid] if fid]
     issues = search_issues(headers, JQL, fids)
-    print(f"Found {len(issues)} open ticket(s) in {PROJECT_KEY}.")
+    print(f"Found {len(issues)} open ticket(s) in {PROJECT_KEY} for machine {machine}.")
 
-    processed = 0
-    for issue in issues:
-        key     = issue["key"]
-        fields  = issue["fields"]
-        summary = fields.get("summary", "")
-        print(f"\n[{key}] {summary}")
+    # processed = 0
+    # for issue in issues:
+    #     key     = issue["key"]
+    #     fields  = issue["fields"]
+    #     summary = fields.get("summary", "")
+    #     print(f"\n[{key}] {summary}")
 
-        machine_names = extract_machine_names(fields.get(machine_fid))
-        if not machine_names:
-            print("  No machine set, skipping.")
-            continue
-        if machine not in machine_names:
-            print(f"  Machine {machine_names} != '{machine}', skipping.")
-            continue
+    #     machine_names = extract_machine_names(fields.get(machine_fid))
+    #     if not machine_names:
+    #         print("  No machine set, skipping.")
+    #         continue
+    #     if machine not in machine_names:
+    #         print(f"  Machine {machine_names} != '{machine}', skipping.")
+    #         continue
 
-        cases = extract_text_lines(fields.get(cases_fid))
-        if not cases:
-            print("  No test cases found, skipping.")
-            continue
+    #     cases = extract_text_lines(fields.get(cases_fid))
+    #     if not cases:
+    #         print("  No test cases found, skipping.")
+    #         continue
 
-        suites_raw = fields.get(suites_fid) or ""
-        suites = ([s.strip() for s in suites_raw.split(",") if s.strip()]
-                  if isinstance(suites_raw, str)
-                  else extract_text_lines(suites_raw))
-        if not suites:
-            print("  No test suites found, skipping.")
-            continue
+    #     suites_raw = fields.get(suites_fid) or ""
+    #     suites = ([s.strip() for s in suites_raw.split(",") if s.strip()]
+    #               if isinstance(suites_raw, str)
+    #               else extract_text_lines(suites_raw))
+    #     if not suites:
+    #         print("  No test suites found, skipping.")
+    #         continue
 
-        action = extract_action(fields.get(action_fid) if action_fid else None)
+    #     action = extract_action(fields.get(action_fid) if action_fid else None)
 
-        print(f"  suites : {suites}")
-        print(f"  cases  : {cases}")
-        print(f"  action : {action}")
+    #     print(f"  suites : {suites}")
+    #     print(f"  cases  : {cases}")
+    #     print(f"  action : {action}")
 
-        suite_sections, overall_rc = [], 0
-        for suite in suites:
-            cmd = build_bless_cmd(suite, cases, action)
-            if dry_run:
-                print(f"  DRY-RUN: {' '.join(cmd)}")
-                suite_sections.append(f"--- Suite: {suite} (DRY-RUN) ---\nCommand: {' '.join(cmd)}")
-            else:
-                print(f"  Running: {' '.join(cmd)}")
-                result = subprocess.run(cmd, capture_output=True, text=True)
-                if result.returncode != 0:
-                    overall_rc = result.returncode
-                status = "SUCCESS" if result.returncode == 0 else f"FAILED (exit {result.returncode})"
-                suite_sections.append(
-                    f"--- Suite: {suite} ({status}) ---\n"
-                    f"Command: {' '.join(cmd)}\n\n"
-                    f"{(result.stdout + result.stderr).strip()}"
-                )
+    #     suite_sections, overall_rc = [], 0
+    #     for suite in suites:
+    #         cmd = build_bless_cmd(suite, cases, action)
+    #         if dry_run:
+    #             print(f"  DRY-RUN: {' '.join(cmd)}")
+    #             suite_sections.append(f"--- Suite: {suite} (DRY-RUN) ---\nCommand: {' '.join(cmd)}")
+    #         else:
+    #             print(f"  Running: {' '.join(cmd)}")
+    #             result = subprocess.run(cmd, capture_output=True, text=True)
+    #             if result.returncode != 0:
+    #                 overall_rc = result.returncode
+    #             status = "SUCCESS" if result.returncode == 0 else f"FAILED (exit {result.returncode})"
+    #             suite_sections.append(
+    #                 f"--- Suite: {suite} ({status}) ---\n"
+    #                 f"Command: {' '.join(cmd)}\n\n"
+    #                 f"{(result.stdout + result.stderr).strip()}"
+    #             )
 
-        if dry_run:
-            print("  DRY-RUN: skipping Jira comment and transition.")
-        else:
-            overall_status = "SUCCESS" if overall_rc == 0 else f"FAILED (exit {overall_rc})"
-            comment = f"bless_test_results {overall_status}\n\n" + "\n\n".join(suite_sections)
-            print(f"  Overall status: {overall_status}. Resolving ticket...")
-            add_comment(headers, key, comment)
-            matched = transition_issue(headers, key)
-            if matched:
-                print(f"  Transitioned via '{matched}'.")
+    #     if dry_run:
+    #         print("  DRY-RUN: skipping Jira comment and transition.")
+    #     else:
+    #         overall_status = "SUCCESS" if overall_rc == 0 else f"FAILED (exit {overall_rc})"
+    #         comment = f"bless_test_results {overall_status}\n\n" + "\n\n".join(suite_sections)
+    #         print(f"  Overall status: {overall_status}. Resolving ticket...")
+    #         add_comment(headers, key, comment)
+    #         matched = transition_issue(headers, key)
+    #         if matched:
+    #             print(f"  Transitioned via '{matched}'.")
 
-        processed += 1
+    #     processed += 1
 
     print(f"\nDone. {processed} ticket(s) processed on '{machine}'.")
     return processed >= 0
