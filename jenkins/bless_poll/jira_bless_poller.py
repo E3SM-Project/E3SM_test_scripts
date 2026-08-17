@@ -47,9 +47,30 @@ def _ssl_ctx():
     return ctx
 
 ###############################################################################
+def _resolve_token(token):
+###############################################################################
+    """Return the token string. If token is a readable file path, read it from there."""
+    token = token.strip()
+    path  = pathlib.Path(token)
+    # Treat it as a file path if it looks like one (absolute, home-relative, or
+    # contains a path separator) so we can give a useful error if the file is missing.
+    looks_like_path = (
+        token.startswith(("/", "~", "./", "../"))
+        or os.sep in token
+    )
+    if looks_like_path:
+        resolved = path.expanduser()
+        if not resolved.is_file():
+            sys.exit(f"Error: --token looks like a file path but '{resolved}' does not exist.")
+        return resolved.read_text().strip()
+    if path.is_file():
+        return path.read_text().strip()
+    return token
+
+###############################################################################
 def _auth_headers(email, token):
 ###############################################################################
-    creds = base64.b64encode(f"{email}:{token}".encode()).decode()
+    creds = base64.b64encode(f"{email.strip()}:{_resolve_token(token)}".encode()).decode()
     return {
         "Authorization": f"Basic {creds}",
         "Content-Type":  "application/json",
@@ -213,9 +234,12 @@ def build_bless_cmd(suite, cases, action):
 def test_connection(email, token):
 ###############################################################################
     """Verify credentials and confirm the required Jira fields are reachable."""
+    token   = _resolve_token(token)
     headers = _auth_headers(email, token)
+    email   = email.strip()
 
     print(f"Testing connection to {JIRA_BASE_URL} ...")
+    print(f"  Email    : {email}")
 
     # Verify authentication via the /myself endpoint
     try:
@@ -387,7 +411,7 @@ OR
     parser.add_argument(
         "-t", "--token",
         required=True,
-        help="Atlassian API token for Jira authentication.",
+        help="Atlassian API token, or a path to a file containing the token.",
     )
 
     parser.add_argument(
