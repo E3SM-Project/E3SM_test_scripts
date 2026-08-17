@@ -25,10 +25,8 @@ JIRA_BASE_URL = "https://e3sm.atlassian.net"
 PROJECT_KEY   = "SES"
 BLESS_SCRIPT  = "./Tools/bless_test_results"
 
-FIELD_CASES   = "List of Test Cases that DIFF'd"
+FIELD_CASES   = "Description"
 FIELD_MACHINE = "Components"
-FIELD_SUITES  = "Test Suites - Developer & Integration"
-FIELD_ACTION  = "Action"
 
 JQL = (
     f"project = {PROJECT_KEY} "
@@ -49,7 +47,9 @@ def _ssl_ctx():
 ###############################################################################
 def _resolve_token(token):
 ###############################################################################
-    """Return the token string. If token is a readable file path, read it from there."""
+    """
+    Return the token string. If token is a readable file path, read it from there.
+    """
     token = token.strip()
     path  = pathlib.Path(token)
     # Treat it as a file path if it looks like one (absolute, home-relative, or
@@ -106,17 +106,21 @@ def _jira_post(path, headers, payload):
 ###############################################################################
 def discover_field_ids(headers):
 ###############################################################################
-    """Return {display_name: field_id} for every field in the Jira instance."""
+    """
+    Return {display_name: field_id} for every field in the Jira instance.
+    """
     return {f["name"]: f["id"] for f in _jira_get("/rest/api/3/field", headers)}
 
 ###############################################################################
 def search_issues(headers, jql, extra_field_ids):
 ###############################################################################
-    """Fetch all issues matching jql, requesting summary + extra_field_ids."""
+    """
+    Fetch all issues matching jql, requesting summary + extra_field_ids.
+    """
     all_issues, start_at = [], 0
     wanted = ",".join(["summary"] + extra_field_ids)
     while True:
-        page  = _jira_get("/rest/api/3/search", headers, {
+        page  = _jira_get("/rest/api/3/search/jql", headers, {
             "jql": jql, "startAt": start_at, "maxResults": 50, "fields": wanted,
         })
         chunk = page.get("issues", [])
@@ -129,7 +133,9 @@ def search_issues(headers, jql, extra_field_ids):
 ###############################################################################
 def add_comment(headers, issue_key, text):
 ###############################################################################
-    """Post a plain-text comment in Atlassian Document Format."""
+    """
+    Post a plain-text comment in Atlassian Document Format.
+    """
     _jira_post(f"/rest/api/3/issue/{issue_key}/comment", headers, {
         "body": {
             "type": "doc", "version": 1,
@@ -140,7 +146,9 @@ def add_comment(headers, issue_key, text):
 ###############################################################################
 def transition_issue(headers, issue_key):
 ###############################################################################
-    """Try each name in RESOLVE_TRANSITION_NAMES; return matched name or None."""
+    """
+    Try each name in RESOLVE_TRANSITION_NAMES; return matched name or None.
+    """
     data       = _jira_get(f"/rest/api/3/issue/{issue_key}/transitions", headers)
     name_to_id = {t["name"].lower(): t["id"] for t in data.get("transitions", [])}
     for name in RESOLVE_TRANSITION_NAMES:
@@ -155,7 +163,9 @@ def transition_issue(headers, issue_key):
 ###############################################################################
 def extract_text_lines(value):
 ###############################################################################
-    """Return non-empty lines from a plain-text or Atlassian Document Format field."""
+    """
+    Return non-empty lines from a plain-text or Atlassian Document Format field.
+    """
     if value is None:
         return []
     if isinstance(value, str):
@@ -174,20 +184,22 @@ def extract_text_lines(value):
 ###############################################################################
 def extract_machine_names(value):
 ###############################################################################
-    """Return a list of lowercase machine name strings from any Jira field shape."""
+    """
+    Return a lowercase machine name from any Jira field shape.
+    """
     if value is None:
-        return []
+        return None
     if isinstance(value, str):
-        return [value.lower()]
+        return value.lower()
     if isinstance(value, dict):
         name = value.get("value") or value.get("name") or value.get("displayName", "")
-        return [name.lower()] if name else []
+        return name.lower() if name else None
     if isinstance(value, list):
-        names = []
-        for item in value:
-            names.extend(extract_machine_names(item))
-        return names
-    return [str(value).lower()]
+        if value:
+            return extract_machine_names(value[0])
+        else:
+            return None
+    return str(value).lower()
 
 ###############################################################################
 def extract_action(value):
@@ -220,7 +232,9 @@ def extract_action(value):
 ###############################################################################
 def build_bless_cmd(suite, cases, action):
 ###############################################################################
-    """Return the bless_test_results argv list for one test suite."""
+    """
+    Return the bless_test_results argv list for one test suite.
+    """
     cmd = [BLESS_SCRIPT, "-t", suite]
     for case in cases:
         cmd += ["-f", case]
@@ -233,7 +247,9 @@ def build_bless_cmd(suite, cases, action):
 ###############################################################################
 def test_connection(email, token):
 ###############################################################################
-    """Verify credentials and confirm the required Jira fields are reachable."""
+    """
+    Verify credentials and confirm the required Jira fields are reachable.
+    """
     token   = _resolve_token(token)
     headers = _auth_headers(email, token)
     email   = email.strip()
@@ -259,6 +275,14 @@ def test_connection(email, token):
         return False
 
 ###############################################################################
+def process_action(action, dry_run=False):
+###############################################################################
+    """
+    Perform a specific bless action. Return success.
+    """
+    return True
+
+###############################################################################
 def poll_jira_bless(email, token, machine, dry_run):
 ###############################################################################
 
@@ -269,91 +293,64 @@ def poll_jira_bless(email, token, machine, dry_run):
 
     print("Discovering field IDs...")
     field_map   = discover_field_ids(headers)
-    #cases_fid   = field_map.get(FIELD_CASES)
+    cases_fid   = field_map.get(FIELD_CASES)
     machine_fid = field_map.get(FIELD_MACHINE)
-    #suites_fid  = field_map.get(FIELD_SUITES)
-    #action_fid  = field_map.get(FIELD_ACTION)
 
-    # if not cases_fid:
-    #     sys.exit(f"Error: Jira field '{FIELD_CASES}' not found in the instance.\nAvailable fields: {sorted(field_map.keys())}")
+    if not cases_fid:
+        sys.exit(f"Error: Jira field '{FIELD_CASES}' not found in the instance.\nAvailable fields: {sorted(field_map.keys())}")
     if not machine_fid:
         sys.exit(f"Error: Jira field '{FIELD_MACHINE}' not found in the instance.\nAvailable fields: {sorted(field_map.keys())}")
-    # if not suites_fid:
-    #     sys.exit(f"Error: Jira field '{FIELD_SUITES}' not found in the instance.\nAvailable fields: {sorted(field_map.keys())}")
-    # if not action_fid:
-    #     print(f"[WARN] Field '{FIELD_ACTION}' not found; defaulting action to 'both' for all tickets.")
 
-    fids   = [fid for fid in [machine_fid] if fid] #[cases_fid, machine_fid, suites_fid, action_fid] if fid]
+    fids   = [fid for fid in [cases_fid, machine_fid] if fid]
     issues = search_issues(headers, JQL, fids)
-    print(f"Found {len(issues)} open ticket(s) in {PROJECT_KEY} for machine {machine}.")
+    print(f"Found {len(issues)} open ticket(s) in {PROJECT_KEY}:")
 
-    # processed = 0
-    # for issue in issues:
-    #     key     = issue["key"]
-    #     fields  = issue["fields"]
-    #     summary = fields.get("summary", "")
-    #     print(f"\n[{key}] {summary}")
+    # Process each open issue
+    processed = 0
+    for issue in issues:
+        indent  = "  "
+        key     = issue["key"]
+        fields  = issue["fields"]
+        summary = fields.get("summary", "")
+        print(f"{indent}[{key}] {summary}")
 
-    #     machine_names = extract_machine_names(fields.get(machine_fid))
-    #     if not machine_names:
-    #         print("  No machine set, skipping.")
-    #         continue
-    #     if machine not in machine_names:
-    #         print(f"  Machine {machine_names} != '{machine}', skipping.")
-    #         continue
+        # Check issue has machine name match
+        indent += "  "
+        machine_names = extract_machine_names(fields.get(machine_fid))
+        if not machine_names:
+            print(f"{indent}SKIP: No machine set")
+            continue
+        if machine != machine_names:
+            print(f"{indent}SKIP: Machine {machine_names} != '{machine}'")
+            continue
+        else:
+            print(f"{indent}FOUND matching ticket: [{key}] {summary}")
 
-    #     cases = extract_text_lines(fields.get(cases_fid))
-    #     if not cases:
-    #         print("  No test cases found, skipping.")
-    #         continue
+        # Get description field
+        indent += "  "
+        actions = extract_text_lines(fields.get(cases_fid))
+        if not actions:
+            print(f"{indent}SKIP: No test actions found")
+            continue
+        else:
+            print(f"{indent}FOUND actions: {actions}")
 
-    #     suites_raw = fields.get(suites_fid) or ""
-    #     suites = ([s.strip() for s in suites_raw.split(",") if s.strip()]
-    #               if isinstance(suites_raw, str)
-    #               else extract_text_lines(suites_raw))
-    #     if not suites:
-    #         print("  No test suites found, skipping.")
-    #         continue
+        # Process actions
+        indent += "  "
+        errors = 0
+        for action in actions:
+            action = action.strip()
+            if action:
+                print(f"{indent}Processing action: {action}")
 
-    #     action = extract_action(fields.get(action_fid) if action_fid else None)
+                success = process_action(action, dry_run=dry_run)
+                if success:
+                    processed += 1
+                else:
+                    errors += 1
 
-    #     print(f"  suites : {suites}")
-    #     print(f"  cases  : {cases}")
-    #     print(f"  action : {action}")
-
-    #     suite_sections, overall_rc = [], 0
-    #     for suite in suites:
-    #         cmd = build_bless_cmd(suite, cases, action)
-    #         if dry_run:
-    #             print(f"  DRY-RUN: {' '.join(cmd)}")
-    #             suite_sections.append(f"--- Suite: {suite} (DRY-RUN) ---\nCommand: {' '.join(cmd)}")
-    #         else:
-    #             print(f"  Running: {' '.join(cmd)}")
-    #             result = subprocess.run(cmd, capture_output=True, text=True)
-    #             if result.returncode != 0:
-    #                 overall_rc = result.returncode
-    #             status = "SUCCESS" if result.returncode == 0 else f"FAILED (exit {result.returncode})"
-    #             suite_sections.append(
-    #                 f"--- Suite: {suite} ({status}) ---\n"
-    #                 f"Command: {' '.join(cmd)}\n\n"
-    #                 f"{(result.stdout + result.stderr).strip()}"
-    #             )
-
-    #     if dry_run:
-    #         print("  DRY-RUN: skipping Jira comment and transition.")
-    #     else:
-    #         overall_status = "SUCCESS" if overall_rc == 0 else f"FAILED (exit {overall_rc})"
-    #         comment = f"bless_test_results {overall_status}\n\n" + "\n\n".join(suite_sections)
-    #         print(f"  Overall status: {overall_status}. Resolving ticket...")
-    #         add_comment(headers, key, comment)
-    #         matched = transition_issue(headers, key)
-    #         if matched:
-    #             print(f"  Transitioned via '{matched}'.")
-
-    #     processed += 1
-
-    print(f"\nDone. {processed} ticket(s) processed on '{machine}'.")
-    return processed >= 0
+    print(f"\nDone. Successfully {processed} ticket(s) processed on '{machine}'. There were {errors} errors.")
+    return processed >= 0 and errors == 0
 
 ###############################################################################
 def parse_command_line(args, description):
