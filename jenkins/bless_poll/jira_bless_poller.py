@@ -202,34 +202,6 @@ def extract_machine_names(value):
     return str(value).lower()
 
 ###############################################################################
-def extract_action(value):
-###############################################################################
-    """
-    Map a checkbox/select Jira field to 'hists', 'nmls', or 'both'.
-    Both checkboxes checked => 'both'.  Missing/unrecognised => 'both'.
-    """
-    VALID = {"hists", "nmls", "both"}
-    if value is None:
-        return "both"
-    if isinstance(value, str):
-        v = value.lower().strip()
-        return v if v in VALID else "both"
-    if isinstance(value, dict):
-        v = (value.get("value") or value.get("name", "")).lower().strip()
-        return v if v in VALID else "both"
-    if isinstance(value, list):
-        selected = {(item.get("value") or item.get("name", "")).lower().strip()
-                    for item in value if isinstance(item, dict)}
-        if "hists" in selected and "nmls" in selected:
-            return "both"
-        if "hists" in selected:
-            return "hists"
-        if "nmls" in selected:
-            return "nmls"
-        return "both"
-    return "both"
-
-###############################################################################
 def build_bless_cmd(suite, cases, action):
 ###############################################################################
     """
@@ -275,7 +247,7 @@ def test_connection(email, token):
         return False
 
 ###############################################################################
-def process_action(action, indent, dry_run=False):
+def process_action(action, indent="", dry_run=False):
 ###############################################################################
     """
     Parse and execute a single bless action string of the form:
