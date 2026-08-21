@@ -199,12 +199,50 @@ def extract_machine_names(value):
     return str(value).lower()
 
 ###############################################################################
+def parse_suite(suite):
+###############################################################################
+    """
+    Parse a suite name of the form e3sm_$testid_$branch_$compiler into
+    (test_id, compiler).
+
+    The compiler is the last underscore-separated word.
+    The branch is the second-to-last word.
+    The test_id is everything between the leading 'e3sm_' prefix and '_$branch_$compiler'.
+    testid may itself contain underscores.
+
+    The returned test_id is formatted as 'J' + branch.capitalize() + testid.capitalize(),
+    matching the convention used by bless_test_results.
+
+    Examples:
+      'e3sm_developer_next_gnu'     -> ('JNextDeveloper', 'gnu')
+      'e3sm_eamxx_v3_main_oneapi'   -> ('JMainEamxx_v3', 'oneapi')
+    """
+    parts = suite.split("_")
+    # Need at least: e3sm, testid, branch, compiler (4 parts)
+    if len(parts) < 4:
+        raise ValueError(f"Suite name {suite!r} is too short to parse "
+                         f"(expected e3sm_<testid>_<branch>_<compiler>)")
+
+    compiler = parts[-1]
+    branch   = parts[-2]
+    # Everything between 'e3sm' prefix and '_branch_compiler'
+    testid   = "_".join(parts[1:-2])
+
+    if not testid:
+        raise ValueError(f"Could not extract testid from suite name {suite!r}")
+
+    test_id = f"J{branch.capitalize()}{testid.capitalize()}"
+    return test_id, compiler
+
+###############################################################################
 def build_bless_cmd(suite, cases, action):
 ###############################################################################
     """
     Return the bless_test_results argv list for one test suite.
+    Parses suite into test_id (-t) and compiler (-c).
     """
-    cmd = [BLESS_SCRIPT, "-t", suite]
+    test_id, compiler = parse_suite(suite)
+    cmd = [BLESS_SCRIPT, "-t", test_id, "-c", compiler]
     for case in cases:
         cmd += ["-f", case]
     if action == "hists":
@@ -267,7 +305,11 @@ def process_action(action, indent="", dry_run=False):
         print(f"{indent}ERROR: unknown task {task_raw!r}; expected one of {list(TASK_MAP.keys())}")
         return False
 
-    cmd = build_bless_cmd(suite, cases, TASK_MAP[task_raw])
+    try:
+        cmd = build_bless_cmd(suite, cases, TASK_MAP[task_raw])
+    except ValueError as exc:
+        print(f"{indent}ERROR: {exc}")
+        return False
 
     if dry_run:
         print(f"{indent}DRY-RUN: {' '.join(cmd)}")
