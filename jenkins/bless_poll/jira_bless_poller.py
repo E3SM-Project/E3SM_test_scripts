@@ -240,11 +240,13 @@ def build_bless_cmd(suite, cases, action):
     """
     Return the bless_test_results argv list for one test suite.
     Parses suite into test_id (-t) and compiler (-c).
+    -f (force) is always added once.
+    Case globs are positional arguments; omitted when cases is ["*"] (all cases).
     """
     test_id, compiler = parse_suite(suite)
-    cmd = [BLESS_SCRIPT, "-t", test_id, "-c", compiler]
-    for case in cases:
-        cmd += ["-f", case]
+    cmd = [BLESS_SCRIPT, "-t", test_id, "-c", compiler, "-f"]
+    if cases != ["*"]:
+        cmd += cases
     if action == "hists":
         cmd.append("--hist-only")
     elif action == "nmls":

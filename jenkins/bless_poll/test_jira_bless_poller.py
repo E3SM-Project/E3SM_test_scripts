@@ -183,6 +183,11 @@ class TestBuildBlessCmd(unittest.TestCase):
         self.assertNotIn("--hist-only", cmd)
         self.assertNotIn("-n", cmd)
 
+    def test_force_flag_always_present(self):
+        for cases in [["*"], ["ERS*"], ["ERS*", "SMS*"]]:
+            cmd = jbp.build_bless_cmd("e3sm_developer_next_gnu", cases, "both")
+            self.assertEqual(cmd.count("-f"), 1, f"Expected exactly one -f for cases={cases}")
+
     def test_action_hists(self):
         cmd = jbp.build_bless_cmd("e3sm_developer_next_gnu", ["ERS*"], "hists")
         self.assertIn("--hist-only", cmd)
@@ -194,12 +199,24 @@ class TestBuildBlessCmd(unittest.TestCase):
         self.assertNotIn("--hist-only", cmd)
 
     def test_multiple_cases(self):
+        # Cases are positional args after -f, not repeated -f flags
         cmd = jbp.build_bless_cmd("e3sm_s_next_gnu", ["ERS*", "SMS*", "PET*"], "both")
-        f_indices = [i for i, x in enumerate(cmd) if x == "-f"]
-        self.assertEqual(len(f_indices), 3)
-        self.assertEqual(cmd[f_indices[0] + 1], "ERS*")
-        self.assertEqual(cmd[f_indices[1] + 1], "SMS*")
-        self.assertEqual(cmd[f_indices[2] + 1], "PET*")
+        self.assertEqual(cmd.count("-f"), 1)
+        f_idx = cmd.index("-f")
+        self.assertEqual(cmd[f_idx + 1], "ERS*")
+        self.assertEqual(cmd[f_idx + 2], "SMS*")
+        self.assertEqual(cmd[f_idx + 3], "PET*")
+
+    def test_wildcard_case_omits_case_args(self):
+        cmd = jbp.build_bless_cmd("e3sm_developer_next_gnu", ["*"], "both")
+        self.assertIn("-f", cmd)
+        self.assertNotIn("*", cmd)
+
+    def test_wildcard_case_with_action_still_adds_flag(self):
+        cmd = jbp.build_bless_cmd("e3sm_developer_next_gnu", ["*"], "hists")
+        self.assertIn("-f", cmd)
+        self.assertNotIn("*", cmd)
+        self.assertIn("--hist-only", cmd)
 
     def test_suite_comes_after_t_flag(self):
         cmd = jbp.build_bless_cmd("e3sm_dev_next_gnu", ["*"], "both")
@@ -257,8 +274,11 @@ class TestProcessAction(unittest.TestCase):
         with patch("subprocess.run", return_value=mock_result) as mock_run:
             jbp.process_action("e3sm_dev_suite_gnu, BOTH, ERS*, SMS*, PET*")
             cmd = mock_run.call_args[0][0]
-            f_args = [cmd[i + 1] for i, x in enumerate(cmd) if x == "-f"]
-            self.assertEqual(f_args, ["ERS*", "SMS*", "PET*"])
+            # Cases are positional args after the single -f flag
+            f_idx = cmd.index("-f")
+            self.assertEqual(cmd[f_idx + 1], "ERS*")
+            self.assertEqual(cmd[f_idx + 2], "SMS*")
+            self.assertEqual(cmd[f_idx + 3], "PET*")
 
     def test_command_failure_returns_false(self):
         mock_result = MagicMock(returncode=1, stdout="", stderr="error output")
