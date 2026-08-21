@@ -10,12 +10,9 @@ finish the ticket is commented with the command output and transitioned
 to Resolved.
 
 Jira fields read per ticket:
-  "List of Test Cases that DIFF'd"        - one regex pattern per line -> -f
-  "Machine"                                - must match --machine
-  "Test Suites - Developer & Integration"  - comma-separated -> one run per suite (-t)
-  "Action"                                 - hists  -> --hist-only
-                                             nmls   -> -n
-                                             both   -> (no extra flag, default)
+  "Components"  - must match --machine
+  "Description" - comma-separated -> one run per suite (-t). Format is: $job, ${NML|HIST|BOTH}, $regex1, $regex2, ...
+                - example: e3sm_developer_next_gnu, BOTH, *
 """
 
 import argparse, base64, json, os, socket, ssl, subprocess, sys, urllib.error, urllib.parse, urllib.request
