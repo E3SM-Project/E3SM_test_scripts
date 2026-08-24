@@ -330,14 +330,14 @@ def build_bless_cmd(suite, cases, action, root=None):
     return cmd
 
 ###############################################################################
-def _invoke_bless(test_id, compiler, cases, action, root):
+def _invoke_bless(test_id, compiler, cases, action, root, bless_dry_run=False):
 ###############################################################################
     """
     Run bless_test_results for one test suite, using the CIME Python API when
     available and falling back to a subprocess call otherwise.
 
-    Parameters match the parsed output of parse_suite() plus the action/root
-    already resolved by process_action().
+    bless_dry_run=True passes dry_run=True to the CIME API (or --dry-run to the
+    subprocess), so bless identifies what it would change without modifying baselines.
 
     Returns True on success.
     """
@@ -354,6 +354,7 @@ def _invoke_bless(test_id, compiler, cases, action, root):
                 hist_only=(action == "hists"),
                 force=True,
                 bless_tests=None if cases == ["*"] else cases,
+                dry_run=bless_dry_run,
             )
         except ImportError:
             pass  # CIME found on path but bless_test_results not importable; fall through
@@ -368,6 +369,8 @@ def _invoke_bless(test_id, compiler, cases, action, root):
         cmd.append("--hist-only")
     elif action == "nmls":
         cmd.append("-n")
+    if bless_dry_run:
+        cmd.append("--dry-run")
     result = subprocess.run(cmd, capture_output=True, text=True)
     output = (result.stdout + result.stderr).strip()
     if output:
@@ -405,12 +408,16 @@ def test_connection(email, token):
         return False
 
 ###############################################################################
-def process_action(action, indent="", dry_run=False, root=None):
+def process_action(action, indent="", dry_run=False, bless_dry_run=False, root=None):
 ###############################################################################
     """
     Parse and execute a single bless action string of the form:
       "suite_name, task, case_glob [, case_glob ...]"
     where task is NML, HIST, or BOTH.  Return True on success.
+
+    dry_run=True  : print the equivalent shell command only; do not invoke bless.
+    bless_dry_run : invoke bless_test_results with its own dry-run mode (shows
+                    what would be blessed without modifying any baselines).
     """
     TASK_MAP = {"NML": "nmls", "HIST": "hists", "BOTH": "both"}
 
@@ -442,8 +449,9 @@ def process_action(action, indent="", dry_run=False, root=None):
         print(f"{indent}DRY-RUN: {' '.join(cmd)}")
         return True
 
-    print(f"{indent}Running: {' '.join(cmd)}")
-    success = _invoke_bless(test_id, compiler, cases, task, root)
+    label = "BLESS-DRY-RUN" if bless_dry_run else "Running"
+    print(f"{indent}{label}: {' '.join(cmd)}")
+    success = _invoke_bless(test_id, compiler, cases, task, root, bless_dry_run=bless_dry_run)
     if not success:
         print(f"{indent}ERROR: bless_test_results failed for {test_id} / {compiler}")
     else:
@@ -451,7 +459,7 @@ def process_action(action, indent="", dry_run=False, root=None):
     return success
 
 ###############################################################################
-def poll_jira_bless(email, token, machine, dry_run, root, tickets=None):
+def poll_jira_bless(email, token, machine, dry_run, root, bless_dry_run=False, tickets=None):
 ###############################################################################
 
     headers = _auth_headers(email, token)
@@ -517,7 +525,8 @@ def poll_jira_bless(email, token, machine, dry_run, root, tickets=None):
             if action:
                 print(f"{indent}Processing action: {action}")
 
-                success = process_action(action, indent + "  ", dry_run=dry_run, root=root)
+                success = process_action(action, indent + "  ", dry_run=dry_run,
+                                        bless_dry_run=bless_dry_run, root=root)
                 if success:
                     processed += 1
                 else:
@@ -592,8 +601,15 @@ OR
         "-n", "--dry-run",
         default=False,
         action="store_true",
-        help="Print the bless commands that would be run without executing them "
-             "or modifying any Jira tickets.",
+        help="Print the equivalent shell command without invoking bless or modifying Jira tickets.",
+    )
+
+    parser.add_argument(
+        "--bless-dry-run",
+        default=False,
+        action="store_true",
+        help="Invoke bless_test_results in its own dry-run mode: shows what would be blessed "
+             "without modifying any baselines or Jira tickets.",
     )
 
     parser.add_argument(

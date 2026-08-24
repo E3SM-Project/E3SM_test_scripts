@@ -302,6 +302,22 @@ class TestProcessAction(unittest.TestCase):
             self.assertEqual(test_id, "JNextDeveloper")
             self.assertEqual(compiler, "gnu")
 
+    def test_bless_dry_run_calls_invoke_with_flag(self):
+        with patch.object(jbp, "_invoke_bless", return_value=True) as mock_invoke:
+            result = jbp.process_action("e3sm_dev_suite_gnu, BOTH, ERS*", bless_dry_run=True)
+            self.assertTrue(result)
+            mock_invoke.assert_called_once()
+            self.assertTrue(mock_invoke.call_args[1]["bless_dry_run"])
+
+    def test_dry_run_takes_priority_over_bless_dry_run(self):
+        # --dry-run (print only) should prevent _invoke_bless from being called at all,
+        # even if --bless-dry-run is also set.
+        with patch.object(jbp, "_invoke_bless") as mock_invoke:
+            result = jbp.process_action("e3sm_dev_suite_gnu, BOTH, ERS*",
+                                        dry_run=True, bless_dry_run=True)
+            self.assertTrue(result)
+            mock_invoke.assert_not_called()
+
 ###############################################################################
 class TestInvokeBless(unittest.TestCase):
 ###############################################################################
@@ -334,6 +350,13 @@ class TestInvokeBless(unittest.TestCase):
         self.assertFalse(kwargs["hist_only"])
         self.assertTrue(kwargs["force"])
         self.assertEqual(kwargs["bless_tests"], ["ERS*", "SMS*"])
+        self.assertFalse(kwargs["dry_run"])
+
+    def test_cime_bless_dry_run_forwarded(self):
+        cm, mock_fn = self._mock_cime(return_value=True)
+        with cm, patch.object(jbp, "_setup_cime_path", return_value=True):
+            jbp._invoke_bless("JNextDev", "gnu", ["ERS*"], "both", "/root/J", bless_dry_run=True)
+        self.assertTrue(mock_fn.call_args[1]["dry_run"])
 
     def test_cime_wildcard_passes_none_bless_tests(self):
         cm, mock_fn = self._mock_cime(return_value=True)
@@ -396,6 +419,22 @@ class TestInvokeBless(unittest.TestCase):
              patch("subprocess.run", return_value=mock_result):
             result = jbp._invoke_bless("JNextDev", "gnu", ["ERS*"], "both", "/root/J")
         self.assertFalse(result)
+
+    def test_subprocess_bless_dry_run_adds_flag(self):
+        mock_result = MagicMock(returncode=0, stdout="", stderr="")
+        with patch.object(jbp, "_setup_cime_path", return_value=False), \
+             patch("subprocess.run", return_value=mock_result) as mock_run:
+            jbp._invoke_bless("JNextDev", "gnu", ["ERS*"], "both", "/root/J", bless_dry_run=True)
+        cmd = mock_run.call_args[0][0]
+        self.assertIn("--dry-run", cmd)
+
+    def test_subprocess_no_bless_dry_run_omits_flag(self):
+        mock_result = MagicMock(returncode=0, stdout="", stderr="")
+        with patch.object(jbp, "_setup_cime_path", return_value=False), \
+             patch("subprocess.run", return_value=mock_result) as mock_run:
+            jbp._invoke_bless("JNextDev", "gnu", ["ERS*"], "both", "/root/J", bless_dry_run=False)
+        cmd = mock_run.call_args[0][0]
+        self.assertNotIn("--dry-run", cmd)
 
 ###############################################################################
 class TestResolveRoot(unittest.TestCase):
