@@ -330,6 +330,51 @@ def build_bless_cmd(suite, cases, action, root=None):
     return cmd
 
 ###############################################################################
+def _invoke_bless(test_id, compiler, cases, action, root):
+###############################################################################
+    """
+    Run bless_test_results for one test suite, using the CIME Python API when
+    available and falling back to a subprocess call otherwise.
+
+    Parameters match the parsed output of parse_suite() plus the action/root
+    already resolved by process_action().
+
+    Returns True on success.
+    """
+    if _setup_cime_path():
+        try:
+            from CIME.bless_test_results import bless_test_results as cime_bless
+            return cime_bless(
+                baseline_name=None,
+                baseline_root=None,
+                test_root=root,
+                compiler=compiler,
+                test_id=test_id,
+                namelists_only=(action == "nmls"),
+                hist_only=(action == "hists"),
+                force=True,
+                bless_tests=None if cases == ["*"] else cases,
+            )
+        except ImportError:
+            pass  # CIME found on path but bless_test_results not importable; fall through
+
+    # Subprocess fallback
+    cmd = [BLESS_SCRIPT, "-t", test_id, "-c", compiler, "-f"]
+    if root:
+        cmd += ["-r", root]
+    if cases != ["*"]:
+        cmd += cases
+    if action == "hists":
+        cmd.append("--hist-only")
+    elif action == "nmls":
+        cmd.append("-n")
+    result = subprocess.run(cmd, capture_output=True, text=True)
+    output = (result.stdout + result.stderr).strip()
+    if output:
+        print(output)
+    return result.returncode == 0
+
+###############################################################################
 def test_connection(email, token):
 ###############################################################################
     """
@@ -383,8 +428,12 @@ def process_action(action, indent="", dry_run=False, root=None):
         print(f"{indent}ERROR: unknown task {task_raw!r}; expected one of {list(TASK_MAP.keys())}")
         return False
 
+    task = TASK_MAP[task_raw]
+
+    # Parse early so we can validate and display before running
     try:
-        cmd = build_bless_cmd(suite, cases, TASK_MAP[task_raw], root=root)
+        cmd = build_bless_cmd(suite, cases, task, root=root)
+        test_id, compiler = parse_suite(suite)
     except ValueError as exc:
         print(f"{indent}ERROR: {exc}")
         return False
@@ -394,17 +443,12 @@ def process_action(action, indent="", dry_run=False, root=None):
         return True
 
     print(f"{indent}Running: {' '.join(cmd)}")
-    result = subprocess.run(cmd, capture_output=True, text=True)
-    output = (result.stdout + result.stderr).strip()
-    if output:
-        print(output)
-
-    if result.returncode != 0:
-        print(f"{indent}ERROR: {cmd} failed")
-        return False
-
-    print(f"{indent}SUCCESS!")
-    return True
+    success = _invoke_bless(test_id, compiler, cases, task, root)
+    if not success:
+        print(f"{indent}ERROR: bless_test_results failed for {test_id} / {compiler}")
+    else:
+        print(f"{indent}SUCCESS!")
+    return success
 
 ###############################################################################
 def poll_jira_bless(email, token, machine, dry_run, root, tickets=None):

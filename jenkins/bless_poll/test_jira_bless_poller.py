@@ -236,12 +236,10 @@ class TestProcessAction(unittest.TestCase):
 ###############################################################################
 
     def test_root_forwarded_to_build_cmd(self):
-        mock_result = MagicMock(returncode=0, stdout="", stderr="")
-        with patch("subprocess.run", return_value=mock_result) as mock_run:
+        with patch.object(jbp, "_invoke_bless", return_value=True) as mock_invoke:
             jbp.process_action("e3sm_developer_next_gnu, BOTH, ERS*", root="/custom/root")
-            cmd = mock_run.call_args[0][0]
-            self.assertIn("-r", cmd)
-            self.assertEqual(cmd[cmd.index("-r") + 1], "/custom/root")
+            _, _, _, _, root = mock_invoke.call_args[0]
+            self.assertEqual(root, "/custom/root")
 
     def test_too_few_parts_returns_false(self):
         self.assertFalse(jbp.process_action("only_suite, NML"))
@@ -254,69 +252,150 @@ class TestProcessAction(unittest.TestCase):
         self.assertFalse(jbp.process_action("badname, BOTH, ERS*"))
 
     def test_dry_run_returns_true_without_running(self):
-        with patch("subprocess.run") as mock_run:
+        with patch.object(jbp, "_invoke_bless") as mock_invoke:
             result = jbp.process_action("e3sm_dev_suite_gnu, BOTH, ERS*", dry_run=True)
             self.assertTrue(result)
-            mock_run.assert_not_called()
+            mock_invoke.assert_not_called()
 
-    def test_nml_task_passes_n_flag(self):
-        mock_result = MagicMock(returncode=0, stdout="ok\n", stderr="")
-        with patch("subprocess.run", return_value=mock_result) as mock_run:
+    def test_nml_task_passes_nmls_action(self):
+        with patch.object(jbp, "_invoke_bless", return_value=True) as mock_invoke:
             result = jbp.process_action("e3sm_dev_suite_gnu, NML, ERS*")
             self.assertTrue(result)
-            cmd = mock_run.call_args[0][0]
-            self.assertIn("-n", cmd)
-            self.assertNotIn("--hist-only", cmd)
+            _, _, _, action, _ = mock_invoke.call_args[0]
+            self.assertEqual(action, "nmls")
 
-    def test_hist_task_passes_hist_only_flag(self):
-        mock_result = MagicMock(returncode=0, stdout="ok\n", stderr="")
-        with patch("subprocess.run", return_value=mock_result) as mock_run:
+    def test_hist_task_passes_hists_action(self):
+        with patch.object(jbp, "_invoke_bless", return_value=True) as mock_invoke:
             result = jbp.process_action("e3sm_dev_suite_gnu, HIST, SMS*")
             self.assertTrue(result)
-            cmd = mock_run.call_args[0][0]
-            self.assertIn("--hist-only", cmd)
-            self.assertNotIn("-n", cmd)
+            _, _, _, action, _ = mock_invoke.call_args[0]
+            self.assertEqual(action, "hists")
 
-    def test_both_task_passes_no_extra_flag(self):
-        mock_result = MagicMock(returncode=0, stdout="ok\n", stderr="")
-        with patch("subprocess.run", return_value=mock_result) as mock_run:
+    def test_both_task_passes_both_action(self):
+        with patch.object(jbp, "_invoke_bless", return_value=True) as mock_invoke:
             result = jbp.process_action("e3sm_dev_suite_gnu, BOTH, *")
             self.assertTrue(result)
-            cmd = mock_run.call_args[0][0]
-            self.assertNotIn("-n", cmd)
-            self.assertNotIn("--hist-only", cmd)
+            _, _, _, action, _ = mock_invoke.call_args[0]
+            self.assertEqual(action, "both")
 
     def test_multiple_case_globs(self):
-        mock_result = MagicMock(returncode=0, stdout="", stderr="")
-        with patch("subprocess.run", return_value=mock_result) as mock_run:
+        with patch.object(jbp, "_invoke_bless", return_value=True) as mock_invoke:
             jbp.process_action("e3sm_dev_suite_gnu, BOTH, ERS*, SMS*, PET*")
-            cmd = mock_run.call_args[0][0]
-            # Cases are positional args after the single -f flag
-            f_idx = cmd.index("-f")
-            self.assertEqual(cmd[f_idx + 1], "ERS*")
-            self.assertEqual(cmd[f_idx + 2], "SMS*")
-            self.assertEqual(cmd[f_idx + 3], "PET*")
+            _, _, cases, _, _ = mock_invoke.call_args[0]
+            self.assertEqual(cases, ["ERS*", "SMS*", "PET*"])
 
     def test_command_failure_returns_false(self):
-        mock_result = MagicMock(returncode=1, stdout="", stderr="error output")
-        with patch("subprocess.run", return_value=mock_result):
+        with patch.object(jbp, "_invoke_bless", return_value=False):
             self.assertFalse(jbp.process_action("e3sm_dev_suite_gnu, BOTH, ERS*"))
 
     def test_task_case_insensitive(self):
-        mock_result = MagicMock(returncode=0, stdout="", stderr="")
-        with patch("subprocess.run", return_value=mock_result) as mock_run:
+        with patch.object(jbp, "_invoke_bless", return_value=True) as mock_invoke:
             result = jbp.process_action("e3sm_dev_suite_gnu, hist, ERS*")
             self.assertTrue(result)
-            cmd = mock_run.call_args[0][0]
-            self.assertIn("--hist-only", cmd)
+            _, _, _, action, _ = mock_invoke.call_args[0]
+            self.assertEqual(action, "hists")
 
     def test_compiler_extracted_from_suite(self):
-        mock_result = MagicMock(returncode=0, stdout="", stderr="")
-        with patch("subprocess.run", return_value=mock_result) as mock_run:
+        with patch.object(jbp, "_invoke_bless", return_value=True) as mock_invoke:
             jbp.process_action("e3sm_developer_next_gnu, BOTH, *")
-            cmd = mock_run.call_args[0][0]
-            self.assertEqual(cmd[cmd.index("-t") + 1], "JNextDeveloper")
-            self.assertEqual(cmd[cmd.index("-c") + 1], "gnu")
+            test_id, compiler, _, _, _ = mock_invoke.call_args[0]
+            self.assertEqual(test_id, "JNextDeveloper")
+            self.assertEqual(compiler, "gnu")
+
+###############################################################################
+class TestInvokeBless(unittest.TestCase):
+###############################################################################
+
+    def _mock_cime(self, return_value=True):
+        """Return a context manager that provides a mock CIME bless function."""
+        mock_fn = MagicMock(return_value=return_value)
+        modules = {
+            "CIME": MagicMock(),
+            "CIME.bless_test_results": MagicMock(bless_test_results=mock_fn),
+        }
+        return patch.dict("sys.modules", modules), mock_fn
+
+    def test_cime_api_used_when_available(self):
+        cm, mock_fn = self._mock_cime(return_value=True)
+        with cm, patch.object(jbp, "_setup_cime_path", return_value=True):
+            result = jbp._invoke_bless("JNextDev", "gnu", ["ERS*"], "both", "/root/J")
+        self.assertTrue(result)
+        mock_fn.assert_called_once()
+
+    def test_cime_api_receives_correct_params(self):
+        cm, mock_fn = self._mock_cime(return_value=True)
+        with cm, patch.object(jbp, "_setup_cime_path", return_value=True):
+            jbp._invoke_bless("JNextDev", "gnu", ["ERS*", "SMS*"], "nmls", "/root/J")
+        kwargs = mock_fn.call_args[1]
+        self.assertEqual(kwargs["test_root"], "/root/J")
+        self.assertEqual(kwargs["compiler"], "gnu")
+        self.assertEqual(kwargs["test_id"], "JNextDev")
+        self.assertTrue(kwargs["namelists_only"])
+        self.assertFalse(kwargs["hist_only"])
+        self.assertTrue(kwargs["force"])
+        self.assertEqual(kwargs["bless_tests"], ["ERS*", "SMS*"])
+
+    def test_cime_wildcard_passes_none_bless_tests(self):
+        cm, mock_fn = self._mock_cime(return_value=True)
+        with cm, patch.object(jbp, "_setup_cime_path", return_value=True):
+            jbp._invoke_bless("JNextDev", "gnu", ["*"], "both", "/root/J")
+        self.assertIsNone(mock_fn.call_args[1]["bless_tests"])
+
+    def test_cime_hist_only_param(self):
+        cm, mock_fn = self._mock_cime(return_value=True)
+        with cm, patch.object(jbp, "_setup_cime_path", return_value=True):
+            jbp._invoke_bless("JNextDev", "gnu", ["*"], "hists", "/root/J")
+        kwargs = mock_fn.call_args[1]
+        self.assertTrue(kwargs["hist_only"])
+        self.assertFalse(kwargs["namelists_only"])
+
+    def test_subprocess_fallback_when_cime_unavailable(self):
+        mock_result = MagicMock(returncode=0, stdout="", stderr="")
+        with patch.object(jbp, "_setup_cime_path", return_value=False), \
+             patch("subprocess.run", return_value=mock_result) as mock_run:
+            result = jbp._invoke_bless("JNextDev", "gnu", ["ERS*"], "both", "/root/J")
+        self.assertTrue(result)
+        mock_run.assert_called_once()
+        cmd = mock_run.call_args[0][0]
+        self.assertIn("-t", cmd)
+        self.assertIn("JNextDev", cmd)
+        self.assertIn("-c", cmd)
+        self.assertIn("gnu", cmd)
+        self.assertIn("-f", cmd)
+
+    def test_subprocess_fallback_nmls(self):
+        mock_result = MagicMock(returncode=0, stdout="", stderr="")
+        with patch.object(jbp, "_setup_cime_path", return_value=False), \
+             patch("subprocess.run", return_value=mock_result) as mock_run:
+            jbp._invoke_bless("JNextDev", "gnu", ["ERS*"], "nmls", "/root/J")
+        cmd = mock_run.call_args[0][0]
+        self.assertIn("-n", cmd)
+        self.assertNotIn("--hist-only", cmd)
+
+    def test_subprocess_fallback_hists(self):
+        mock_result = MagicMock(returncode=0, stdout="", stderr="")
+        with patch.object(jbp, "_setup_cime_path", return_value=False), \
+             patch("subprocess.run", return_value=mock_result) as mock_run:
+            jbp._invoke_bless("JNextDev", "gnu", ["ERS*"], "hists", "/root/J")
+        cmd = mock_run.call_args[0][0]
+        self.assertIn("--hist-only", cmd)
+        self.assertNotIn("-n", cmd)
+
+    def test_subprocess_fallback_wildcard_omits_cases(self):
+        mock_result = MagicMock(returncode=0, stdout="", stderr="")
+        with patch.object(jbp, "_setup_cime_path", return_value=False), \
+             patch("subprocess.run", return_value=mock_result) as mock_run:
+            jbp._invoke_bless("JNextDev", "gnu", ["*"], "both", "/root/J")
+        cmd = mock_run.call_args[0][0]
+        self.assertNotIn("*", cmd)
+        self.assertIn("-f", cmd)
+
+    def test_subprocess_returns_false_on_nonzero_exit(self):
+        mock_result = MagicMock(returncode=1, stdout="", stderr="error")
+        with patch.object(jbp, "_setup_cime_path", return_value=False), \
+             patch("subprocess.run", return_value=mock_result):
+            result = jbp._invoke_bless("JNextDev", "gnu", ["ERS*"], "both", "/root/J")
+        self.assertFalse(result)
 
 ###############################################################################
 class TestResolveRoot(unittest.TestCase):
@@ -359,15 +438,13 @@ class TestMachineRoots(unittest.TestCase):
 
     def test_poll_uses_root_in_command(self):
         issues = [_make_issue("SES-1", "mappy", "e3sm_developer_next_gnu, BOTH, ERS*")]
-        mock_proc = MagicMock(returncode=0, stdout="", stderr="")
         with patch.object(jbp, "_auth_headers", return_value={}), \
              patch.object(jbp, "discover_field_ids", return_value=FAKE_FIELD_MAP), \
              patch.object(jbp, "search_issues", return_value=issues), \
-             patch("subprocess.run", return_value=mock_proc) as mock_run:
+             patch.object(jbp, "_invoke_bless", return_value=True) as mock_invoke:
             jbp.poll_jira_bless("u@e.com", "tok", "mappy", False, "/a/b")
-            cmd = mock_run.call_args[0][0]
-            self.assertIn("-r", cmd)
-            self.assertEqual(cmd[cmd.index("-r") + 1], "/a/b")
+            _, _, _, _, root = mock_invoke.call_args[0]
+            self.assertEqual(root, "/a/b")
 
 ###############################################################################
 class TestPollJiraBless(unittest.TestCase):
@@ -375,57 +452,56 @@ class TestPollJiraBless(unittest.TestCase):
 
     def _run_poll(self, issues, machine="mappy", dry_run=False, root="/fake/root", tickets=None):
         """
-        Run poll_jira_bless with all Jira I/O mocked out.
-        Returns (success, subprocess_calls).
+        Run poll_jira_bless with all Jira I/O and bless invocation mocked out.
+        Returns (success, mock_invoke) where mock_invoke is the _invoke_bless mock.
         """
-        mock_proc = MagicMock(returncode=0, stdout="blessed\n", stderr="")
         with patch.object(jbp, "_auth_headers", return_value={}), \
              patch.object(jbp, "discover_field_ids", return_value=FAKE_FIELD_MAP), \
              patch.object(jbp, "search_issues", return_value=issues), \
-             patch("subprocess.run", return_value=mock_proc) as mock_run:
+             patch.object(jbp, "_invoke_bless", return_value=True) as mock_invoke:
             success = jbp.poll_jira_bless("user@example.com", "token", machine, dry_run, root,
                                           tickets=tickets)
-            return success, mock_run
+            return success, mock_invoke
 
     def test_no_tickets_returns_success(self):
-        success, mock_run = self._run_poll([])
+        success, mock_invoke = self._run_poll([])
         self.assertTrue(success)
-        mock_run.assert_not_called()
+        mock_invoke.assert_not_called()
 
     def test_matching_ticket_runs_bless(self):
         issues = [_make_issue("SES-1", "mappy", "e3sm_developer_next_gnu, BOTH, ERS*")]
-        success, mock_run = self._run_poll(issues, machine="mappy")
+        success, mock_invoke = self._run_poll(issues, machine="mappy")
         self.assertTrue(success)
-        mock_run.assert_called_once()
-        cmd = mock_run.call_args[0][0]
-        self.assertIn("JNextDeveloper", cmd)
-        self.assertIn("gnu", cmd)
-        self.assertIn("ERS*", cmd)
+        mock_invoke.assert_called_once()
+        test_id, compiler, cases, action, root = mock_invoke.call_args[0]
+        self.assertEqual(test_id, "JNextDeveloper")
+        self.assertEqual(compiler, "gnu")
+        self.assertIn("ERS*", cases)
 
     def test_wrong_machine_skips_ticket(self):
         issues = [_make_issue("SES-1", "chrysalis", "e3sm_developer_next_gnu, BOTH, ERS*")]
-        success, mock_run = self._run_poll(issues, machine="mappy")
+        success, mock_invoke = self._run_poll(issues, machine="mappy")
         self.assertTrue(success)
-        mock_run.assert_not_called()
+        mock_invoke.assert_not_called()
 
     def test_no_machine_set_skips_ticket(self):
         issues = [_make_issue("SES-1", None, "e3sm_developer_next_gnu, BOTH, ERS*")]
-        success, mock_run = self._run_poll(issues, machine="mappy")
+        success, mock_invoke = self._run_poll(issues, machine="mappy")
         self.assertTrue(success)
-        mock_run.assert_not_called()
+        mock_invoke.assert_not_called()
 
     def test_empty_description_skips_ticket(self):
         issues = [_make_issue("SES-1", "mappy", "")]
-        success, mock_run = self._run_poll(issues, machine="mappy")
+        success, mock_invoke = self._run_poll(issues, machine="mappy")
         self.assertTrue(success)
-        mock_run.assert_not_called()
+        mock_invoke.assert_not_called()
 
     def test_multiple_actions_each_run(self):
         desc = "e3sm_suite_a_gnu, BOTH, ERS*\ne3sm_suite_b_intel, HIST, SMS*"
         issues = [_make_issue("SES-1", "mappy", desc)]
-        success, mock_run = self._run_poll(issues, machine="mappy")
+        success, mock_invoke = self._run_poll(issues, machine="mappy")
         self.assertTrue(success)
-        self.assertEqual(mock_run.call_count, 2)
+        self.assertEqual(mock_invoke.call_count, 2)
 
     def test_multiple_tickets_only_matching_machine_run(self):
         issues = [
@@ -433,31 +509,30 @@ class TestPollJiraBless(unittest.TestCase):
             _make_issue("SES-2", "chrysalis", "e3sm_suite_b_intel, BOTH, *"),
             _make_issue("SES-3", "mappy",    "e3sm_suite_c_gnu, NML, ERS*"),
         ]
-        success, mock_run = self._run_poll(issues, machine="mappy")
+        success, mock_invoke = self._run_poll(issues, machine="mappy")
         self.assertTrue(success)
-        self.assertEqual(mock_run.call_count, 2)
+        self.assertEqual(mock_invoke.call_count, 2)
 
-    def test_dry_run_does_not_call_subprocess(self):
+    def test_dry_run_does_not_call_invoke(self):
         issues = [_make_issue("SES-1", "mappy", "e3sm_suite_a_gnu, BOTH, ERS*")]
-        success, mock_run = self._run_poll(issues, machine="mappy", dry_run=True)
+        success, mock_invoke = self._run_poll(issues, machine="mappy", dry_run=True)
         self.assertTrue(success)
-        mock_run.assert_not_called()
+        mock_invoke.assert_not_called()
 
     def test_failed_action_returns_failure(self):
         issues = [_make_issue("SES-1", "mappy", "e3sm_suite_a_gnu, BOTH, ERS*")]
-        mock_proc = MagicMock(returncode=1, stdout="", stderr="error")
         with patch.object(jbp, "_auth_headers", return_value={}), \
              patch.object(jbp, "discover_field_ids", return_value=FAKE_FIELD_MAP), \
              patch.object(jbp, "search_issues", return_value=issues), \
-             patch("subprocess.run", return_value=mock_proc):
+             patch.object(jbp, "_invoke_bless", return_value=False):
             success = jbp.poll_jira_bless("user@example.com", "token", "mappy", False, "/fake/root")
         self.assertFalse(success)
 
     def test_machine_match_is_case_insensitive(self):
         issues = [_make_issue("SES-1", "Mappy", "e3sm_suite_a_gnu, BOTH, *")]
-        success, mock_run = self._run_poll(issues, machine="mappy")
+        success, mock_invoke = self._run_poll(issues, machine="mappy")
         self.assertTrue(success)
-        mock_run.assert_called_once()
+        mock_invoke.assert_called_once()
 
     def test_ticket_filter_limits_processing(self):
         issues = [
@@ -465,30 +540,30 @@ class TestPollJiraBless(unittest.TestCase):
             _make_issue("SES-2", "mappy", "e3sm_suite_b_gnu, BOTH, *"),
             _make_issue("SES-3", "mappy", "e3sm_suite_c_gnu, BOTH, *"),
         ]
-        success, mock_run = self._run_poll(issues, tickets=["SES-2"])
+        success, mock_invoke = self._run_poll(issues, tickets=["SES-2"])
         self.assertTrue(success)
-        self.assertEqual(mock_run.call_count, 1)
+        self.assertEqual(mock_invoke.call_count, 1)
 
     def test_ticket_filter_is_case_insensitive(self):
         issues = [_make_issue("SES-42", "mappy", "e3sm_suite_a_gnu, BOTH, *")]
-        success, mock_run = self._run_poll(issues, tickets=["ses-42"])
+        success, mock_invoke = self._run_poll(issues, tickets=["ses-42"])
         self.assertTrue(success)
-        mock_run.assert_called_once()
+        mock_invoke.assert_called_once()
 
     def test_ticket_filter_no_match_runs_nothing(self):
         issues = [_make_issue("SES-1", "mappy", "e3sm_suite_a_gnu, BOTH, *")]
-        success, mock_run = self._run_poll(issues, tickets=["SES-99"])
+        success, mock_invoke = self._run_poll(issues, tickets=["SES-99"])
         self.assertTrue(success)
-        mock_run.assert_not_called()
+        mock_invoke.assert_not_called()
 
     def test_no_ticket_filter_processes_all(self):
         issues = [
             _make_issue("SES-1", "mappy", "e3sm_suite_a_gnu, BOTH, *"),
             _make_issue("SES-2", "mappy", "e3sm_suite_b_gnu, BOTH, *"),
         ]
-        success, mock_run = self._run_poll(issues, tickets=None)
+        success, mock_invoke = self._run_poll(issues, tickets=None)
         self.assertTrue(success)
-        self.assertEqual(mock_run.call_count, 2)
+        self.assertEqual(mock_invoke.call_count, 2)
 
 ###############################################################################
 
