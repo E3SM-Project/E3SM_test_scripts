@@ -308,7 +308,7 @@ def parse_suite(suite):
     return test_id, compiler
 
 ###############################################################################
-def build_bless_cmd(suite, cases, action, root=None):
+def build_bless_cmd(suite, cases, action, root=None, bless_dry_run=False):
 ###############################################################################
     """
     Return the bless_test_results argv list for one test suite.
@@ -316,6 +316,7 @@ def build_bless_cmd(suite, cases, action, root=None):
     -f (force) is always added once.
     Case globs are positional arguments; omitted when cases is ["*"] (all cases).
     If root is provided it is passed as -r <root>.
+    If bless_dry_run is True, --dry-run is appended.
     """
     test_id, compiler = parse_suite(suite)
     cmd = [BLESS_SCRIPT, "-t", test_id, "-c", compiler, "-f"]
@@ -327,10 +328,12 @@ def build_bless_cmd(suite, cases, action, root=None):
         cmd.append("--hist-only")
     elif action == "nmls":
         cmd.append("-n")
+    if bless_dry_run:
+        cmd.append("--dry-run")
     return cmd
 
 ###############################################################################
-def _invoke_bless(test_id, compiler, cases, action, root, bless_dry_run=False):
+def _invoke_bless(suite, cases, action, root, bless_dry_run=False):
 ###############################################################################
     """
     Run bless_test_results for one test suite, using the CIME Python API when
@@ -341,6 +344,8 @@ def _invoke_bless(test_id, compiler, cases, action, root, bless_dry_run=False):
 
     Returns True on success.
     """
+    test_id, compiler = parse_suite(suite)
+
     if _setup_cime_path():
         try:
             from CIME.bless_test_results import bless_test_results as cime_bless
@@ -360,17 +365,7 @@ def _invoke_bless(test_id, compiler, cases, action, root, bless_dry_run=False):
             pass  # CIME found on path but bless_test_results not importable; fall through
 
     # Subprocess fallback
-    cmd = [BLESS_SCRIPT, "-t", test_id, "-c", compiler, "-f"]
-    if root:
-        cmd += ["-r", root]
-    if cases != ["*"]:
-        cmd += cases
-    if action == "hists":
-        cmd.append("--hist-only")
-    elif action == "nmls":
-        cmd.append("-n")
-    if bless_dry_run:
-        cmd.append("--dry-run")
+    cmd = build_bless_cmd(suite, cases, action, root=root, bless_dry_run=bless_dry_run)
     result = subprocess.run(cmd, capture_output=True, text=True)
     output = (result.stdout + result.stderr).strip()
     if output:
@@ -440,7 +435,6 @@ def process_action(action, indent="", dry_run=False, bless_dry_run=False, root=N
     # Parse early so we can validate and display before running
     try:
         cmd = build_bless_cmd(suite, cases, task, root=root)
-        test_id, compiler = parse_suite(suite)
     except ValueError as exc:
         print(f"{indent}ERROR: {exc}")
         return False
@@ -451,9 +445,9 @@ def process_action(action, indent="", dry_run=False, bless_dry_run=False, root=N
 
     label = "BLESS-DRY-RUN" if bless_dry_run else "Running"
     print(f"{indent}{label}: {' '.join(cmd)}")
-    success = _invoke_bless(test_id, compiler, cases, task, root, bless_dry_run=bless_dry_run)
+    success = _invoke_bless(suite, cases, task, root, bless_dry_run=bless_dry_run)
     if not success:
-        print(f"{indent}ERROR: bless_test_results failed for {test_id} / {compiler}")
+        print(f"{indent}ERROR: bless_test_results failed for {suite}")
     else:
         print(f"{indent}SUCCESS!")
     return success

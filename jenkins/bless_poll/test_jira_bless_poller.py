@@ -231,6 +231,14 @@ class TestBuildBlessCmd(unittest.TestCase):
         cmd = jbp.build_bless_cmd("e3sm_dev_next_gnu", ["*"], "both")
         self.assertEqual(cmd[cmd.index("-t") + 1], "JNextDev")
 
+    def test_bless_dry_run_adds_dry_run_flag(self):
+        cmd = jbp.build_bless_cmd("e3sm_developer_next_gnu", ["ERS*"], "both", bless_dry_run=True)
+        self.assertIn("--dry-run", cmd)
+
+    def test_no_bless_dry_run_omits_dry_run_flag(self):
+        cmd = jbp.build_bless_cmd("e3sm_developer_next_gnu", ["ERS*"], "both", bless_dry_run=False)
+        self.assertNotIn("--dry-run", cmd)
+
 ###############################################################################
 class TestProcessAction(unittest.TestCase):
 ###############################################################################
@@ -238,7 +246,7 @@ class TestProcessAction(unittest.TestCase):
     def test_root_forwarded_to_build_cmd(self):
         with patch.object(jbp, "_invoke_bless", return_value=True) as mock_invoke:
             jbp.process_action("e3sm_developer_next_gnu, BOTH, ERS*", root="/custom/root")
-            _, _, _, _, root = mock_invoke.call_args[0]
+            _, _, _, root = mock_invoke.call_args[0]
             self.assertEqual(root, "/custom/root")
 
     def test_too_few_parts_returns_false(self):
@@ -261,27 +269,27 @@ class TestProcessAction(unittest.TestCase):
         with patch.object(jbp, "_invoke_bless", return_value=True) as mock_invoke:
             result = jbp.process_action("e3sm_dev_suite_gnu, NML, ERS*")
             self.assertTrue(result)
-            _, _, _, action, _ = mock_invoke.call_args[0]
+            _, _, action, _ = mock_invoke.call_args[0]
             self.assertEqual(action, "nmls")
 
     def test_hist_task_passes_hists_action(self):
         with patch.object(jbp, "_invoke_bless", return_value=True) as mock_invoke:
             result = jbp.process_action("e3sm_dev_suite_gnu, HIST, SMS*")
             self.assertTrue(result)
-            _, _, _, action, _ = mock_invoke.call_args[0]
+            _, _, action, _ = mock_invoke.call_args[0]
             self.assertEqual(action, "hists")
 
     def test_both_task_passes_both_action(self):
         with patch.object(jbp, "_invoke_bless", return_value=True) as mock_invoke:
             result = jbp.process_action("e3sm_dev_suite_gnu, BOTH, *")
             self.assertTrue(result)
-            _, _, _, action, _ = mock_invoke.call_args[0]
+            _, _, action, _ = mock_invoke.call_args[0]
             self.assertEqual(action, "both")
 
     def test_multiple_case_globs(self):
         with patch.object(jbp, "_invoke_bless", return_value=True) as mock_invoke:
             jbp.process_action("e3sm_dev_suite_gnu, BOTH, ERS*, SMS*, PET*")
-            _, _, cases, _, _ = mock_invoke.call_args[0]
+            _, cases, _, _ = mock_invoke.call_args[0]
             self.assertEqual(cases, ["ERS*", "SMS*", "PET*"])
 
     def test_command_failure_returns_false(self):
@@ -292,15 +300,14 @@ class TestProcessAction(unittest.TestCase):
         with patch.object(jbp, "_invoke_bless", return_value=True) as mock_invoke:
             result = jbp.process_action("e3sm_dev_suite_gnu, hist, ERS*")
             self.assertTrue(result)
-            _, _, _, action, _ = mock_invoke.call_args[0]
+            _, _, action, _ = mock_invoke.call_args[0]
             self.assertEqual(action, "hists")
 
     def test_compiler_extracted_from_suite(self):
         with patch.object(jbp, "_invoke_bless", return_value=True) as mock_invoke:
             jbp.process_action("e3sm_developer_next_gnu, BOTH, *")
-            test_id, compiler, _, _, _ = mock_invoke.call_args[0]
-            self.assertEqual(test_id, "JNextDeveloper")
-            self.assertEqual(compiler, "gnu")
+            suite, _, _, _ = mock_invoke.call_args[0]
+            self.assertEqual(suite, "e3sm_developer_next_gnu")
 
     def test_bless_dry_run_calls_invoke_with_flag(self):
         with patch.object(jbp, "_invoke_bless", return_value=True) as mock_invoke:
@@ -322,6 +329,8 @@ class TestProcessAction(unittest.TestCase):
 class TestInvokeBless(unittest.TestCase):
 ###############################################################################
 
+    _SUITE = "e3sm_developer_next_gnu"   # test_id=JNextDeveloper, compiler=gnu
+
     def _mock_cime(self, return_value=True):
         """Return a context manager that provides a mock CIME bless function."""
         mock_fn = MagicMock(return_value=return_value)
@@ -334,18 +343,18 @@ class TestInvokeBless(unittest.TestCase):
     def test_cime_api_used_when_available(self):
         cm, mock_fn = self._mock_cime(return_value=True)
         with cm, patch.object(jbp, "_setup_cime_path", return_value=True):
-            result = jbp._invoke_bless("JNextDev", "gnu", ["ERS*"], "both", "/root/J")
+            result = jbp._invoke_bless(self._SUITE, ["ERS*"], "both", "/root/J")
         self.assertTrue(result)
         mock_fn.assert_called_once()
 
     def test_cime_api_receives_correct_params(self):
         cm, mock_fn = self._mock_cime(return_value=True)
         with cm, patch.object(jbp, "_setup_cime_path", return_value=True):
-            jbp._invoke_bless("JNextDev", "gnu", ["ERS*", "SMS*"], "nmls", "/root/J")
+            jbp._invoke_bless(self._SUITE, ["ERS*", "SMS*"], "nmls", "/root/J")
         kwargs = mock_fn.call_args[1]
         self.assertEqual(kwargs["test_root"], "/root/J")
         self.assertEqual(kwargs["compiler"], "gnu")
-        self.assertEqual(kwargs["test_id"], "JNextDev")
+        self.assertEqual(kwargs["test_id"], "JNextDeveloper")
         self.assertTrue(kwargs["namelists_only"])
         self.assertFalse(kwargs["hist_only"])
         self.assertTrue(kwargs["force"])
@@ -355,19 +364,19 @@ class TestInvokeBless(unittest.TestCase):
     def test_cime_bless_dry_run_forwarded(self):
         cm, mock_fn = self._mock_cime(return_value=True)
         with cm, patch.object(jbp, "_setup_cime_path", return_value=True):
-            jbp._invoke_bless("JNextDev", "gnu", ["ERS*"], "both", "/root/J", bless_dry_run=True)
+            jbp._invoke_bless(self._SUITE, ["ERS*"], "both", "/root/J", bless_dry_run=True)
         self.assertTrue(mock_fn.call_args[1]["dry_run"])
 
     def test_cime_wildcard_passes_none_bless_tests(self):
         cm, mock_fn = self._mock_cime(return_value=True)
         with cm, patch.object(jbp, "_setup_cime_path", return_value=True):
-            jbp._invoke_bless("JNextDev", "gnu", ["*"], "both", "/root/J")
+            jbp._invoke_bless(self._SUITE, ["*"], "both", "/root/J")
         self.assertIsNone(mock_fn.call_args[1]["bless_tests"])
 
     def test_cime_hist_only_param(self):
         cm, mock_fn = self._mock_cime(return_value=True)
         with cm, patch.object(jbp, "_setup_cime_path", return_value=True):
-            jbp._invoke_bless("JNextDev", "gnu", ["*"], "hists", "/root/J")
+            jbp._invoke_bless(self._SUITE, ["*"], "hists", "/root/J")
         kwargs = mock_fn.call_args[1]
         self.assertTrue(kwargs["hist_only"])
         self.assertFalse(kwargs["namelists_only"])
@@ -376,12 +385,12 @@ class TestInvokeBless(unittest.TestCase):
         mock_result = MagicMock(returncode=0, stdout="", stderr="")
         with patch.object(jbp, "_setup_cime_path", return_value=False), \
              patch("subprocess.run", return_value=mock_result) as mock_run:
-            result = jbp._invoke_bless("JNextDev", "gnu", ["ERS*"], "both", "/root/J")
+            result = jbp._invoke_bless(self._SUITE, ["ERS*"], "both", "/root/J")
         self.assertTrue(result)
         mock_run.assert_called_once()
         cmd = mock_run.call_args[0][0]
         self.assertIn("-t", cmd)
-        self.assertIn("JNextDev", cmd)
+        self.assertIn("JNextDeveloper", cmd)
         self.assertIn("-c", cmd)
         self.assertIn("gnu", cmd)
         self.assertIn("-f", cmd)
@@ -390,7 +399,7 @@ class TestInvokeBless(unittest.TestCase):
         mock_result = MagicMock(returncode=0, stdout="", stderr="")
         with patch.object(jbp, "_setup_cime_path", return_value=False), \
              patch("subprocess.run", return_value=mock_result) as mock_run:
-            jbp._invoke_bless("JNextDev", "gnu", ["ERS*"], "nmls", "/root/J")
+            jbp._invoke_bless(self._SUITE, ["ERS*"], "nmls", "/root/J")
         cmd = mock_run.call_args[0][0]
         self.assertIn("-n", cmd)
         self.assertNotIn("--hist-only", cmd)
@@ -399,7 +408,7 @@ class TestInvokeBless(unittest.TestCase):
         mock_result = MagicMock(returncode=0, stdout="", stderr="")
         with patch.object(jbp, "_setup_cime_path", return_value=False), \
              patch("subprocess.run", return_value=mock_result) as mock_run:
-            jbp._invoke_bless("JNextDev", "gnu", ["ERS*"], "hists", "/root/J")
+            jbp._invoke_bless(self._SUITE, ["ERS*"], "hists", "/root/J")
         cmd = mock_run.call_args[0][0]
         self.assertIn("--hist-only", cmd)
         self.assertNotIn("-n", cmd)
@@ -408,7 +417,7 @@ class TestInvokeBless(unittest.TestCase):
         mock_result = MagicMock(returncode=0, stdout="", stderr="")
         with patch.object(jbp, "_setup_cime_path", return_value=False), \
              patch("subprocess.run", return_value=mock_result) as mock_run:
-            jbp._invoke_bless("JNextDev", "gnu", ["*"], "both", "/root/J")
+            jbp._invoke_bless(self._SUITE, ["*"], "both", "/root/J")
         cmd = mock_run.call_args[0][0]
         self.assertNotIn("*", cmd)
         self.assertIn("-f", cmd)
@@ -417,14 +426,14 @@ class TestInvokeBless(unittest.TestCase):
         mock_result = MagicMock(returncode=1, stdout="", stderr="error")
         with patch.object(jbp, "_setup_cime_path", return_value=False), \
              patch("subprocess.run", return_value=mock_result):
-            result = jbp._invoke_bless("JNextDev", "gnu", ["ERS*"], "both", "/root/J")
+            result = jbp._invoke_bless(self._SUITE, ["ERS*"], "both", "/root/J")
         self.assertFalse(result)
 
     def test_subprocess_bless_dry_run_adds_flag(self):
         mock_result = MagicMock(returncode=0, stdout="", stderr="")
         with patch.object(jbp, "_setup_cime_path", return_value=False), \
              patch("subprocess.run", return_value=mock_result) as mock_run:
-            jbp._invoke_bless("JNextDev", "gnu", ["ERS*"], "both", "/root/J", bless_dry_run=True)
+            jbp._invoke_bless(self._SUITE, ["ERS*"], "both", "/root/J", bless_dry_run=True)
         cmd = mock_run.call_args[0][0]
         self.assertIn("--dry-run", cmd)
 
@@ -432,7 +441,7 @@ class TestInvokeBless(unittest.TestCase):
         mock_result = MagicMock(returncode=0, stdout="", stderr="")
         with patch.object(jbp, "_setup_cime_path", return_value=False), \
              patch("subprocess.run", return_value=mock_result) as mock_run:
-            jbp._invoke_bless("JNextDev", "gnu", ["ERS*"], "both", "/root/J", bless_dry_run=False)
+            jbp._invoke_bless(self._SUITE, ["ERS*"], "both", "/root/J", bless_dry_run=False)
         cmd = mock_run.call_args[0][0]
         self.assertNotIn("--dry-run", cmd)
 
@@ -482,7 +491,7 @@ class TestMachineRoots(unittest.TestCase):
              patch.object(jbp, "search_issues", return_value=issues), \
              patch.object(jbp, "_invoke_bless", return_value=True) as mock_invoke:
             jbp.poll_jira_bless("u@e.com", "tok", "mappy", False, "/a/b")
-            _, _, _, _, root = mock_invoke.call_args[0]
+            _, _, _, root = mock_invoke.call_args[0]
             self.assertEqual(root, "/a/b")
 
 ###############################################################################
@@ -512,9 +521,8 @@ class TestPollJiraBless(unittest.TestCase):
         success, mock_invoke = self._run_poll(issues, machine="mappy")
         self.assertTrue(success)
         mock_invoke.assert_called_once()
-        test_id, compiler, cases, action, root = mock_invoke.call_args[0]
-        self.assertEqual(test_id, "JNextDeveloper")
-        self.assertEqual(compiler, "gnu")
+        suite, cases, action, root = mock_invoke.call_args[0]
+        self.assertEqual(suite, "e3sm_developer_next_gnu")
         self.assertIn("ERS*", cases)
 
     def test_wrong_machine_skips_ticket(self):
