@@ -16,7 +16,8 @@ Jira fields read per ticket:
                 - example: e3sm_developer_next_gnu, BOTH, .*F2010.*
 """
 
-import argparse, base64, getpass, json, os, socket, ssl, subprocess, sys, urllib.error, urllib.parse, urllib.request
+import argparse, base64, getpass, io, json, os, socket, ssl, subprocess, sys, urllib.error, urllib.parse, urllib.request
+import contextlib
 import pathlib
 
 JIRA_BASE_URL = "https://e3sm.atlassian.net"
@@ -39,6 +40,25 @@ RESOLVE_TRANSITION_NAMES = ["resolve this issue", "resolved", "resolve request",
 MACHINE_ROOTS = {
     "mappy": "/ascldap/users/e3sm-jenkins/acme/scratch/J",
 }
+
+###############################################################################
+class _TeeStream:
+###############################################################################
+    """
+    File-like object that writes to two streams simultaneously.
+    Used to capture per-ticket output while still printing to the real stdout.
+    """
+    def __init__(self, primary, secondary):
+        self._primary   = primary
+        self._secondary = secondary
+
+    def write(self, data):
+        self._primary.write(data)
+        self._secondary.write(data)
+
+    def flush(self):
+        self._primary.flush()
+        self._secondary.flush()
 
 ###############################################################################
 def _setup_cime_path():
@@ -528,28 +548,31 @@ def poll_jira_bless(email, token, machine, dry_run, root, bless_dry_run=False, t
         else:
             print(f"{indent}FOUND actions: {actions}")
 
-        # Process actions
+        # Process actions, capturing all output for the Jira comment
         indent += "  "
         ticket_successes = 0
         ticket_errors = 0
-        for action in actions:
-            action = action.strip()
-            if action:
-                print(f"{indent}Processing action: {action}")
+        ticket_buf = io.StringIO()
+        with contextlib.redirect_stdout(_TeeStream(sys.stdout, ticket_buf)):
+            for action in actions:
+                action = action.strip()
+                if action:
+                    print(f"{indent}Processing action: {action}")
 
-                success = process_action(action, indent + "  ", dry_run=dry_run,
-                                        bless_dry_run=bless_dry_run, root=root)
-                if success:
-                    ticket_successes += 1
-                else:
-                    ticket_errors += 1
+                    success = process_action(action, indent + "  ", dry_run=dry_run,
+                                            bless_dry_run=bless_dry_run, root=root)
+                    if success:
+                        ticket_successes += 1
+                    else:
+                        ticket_errors += 1
 
         processed += ticket_successes
         errors    += ticket_errors
 
         # Close the ticket if every action succeeded and this is a real bless run
         if ticket_successes > 0 and ticket_errors == 0 and not dry_run and not bless_dry_run:
-            add_comment(headers, key,
+            comment = ticket_buf.getvalue().strip()
+            add_comment(headers, key, comment if comment else
                         f"Bless completed successfully on {machine} "
                         f"({ticket_successes} action(s) processed).")
             used = transition_issue(headers, key)

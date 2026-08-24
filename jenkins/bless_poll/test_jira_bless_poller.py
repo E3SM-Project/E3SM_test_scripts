@@ -698,6 +698,13 @@ class TestPollJiraBless(unittest.TestCase):
         mock_comment.assert_called_once_with({}, "SES-1", unittest.mock.ANY)
         mock_transition.assert_called_once_with({}, "SES-1")
 
+    def test_comment_contains_captured_output(self):
+        issues = [_make_issue("SES-1", "mappy", "e3sm_suite_a_gnu, BOTH, *")]
+        _, _, mock_comment, _ = self._run_poll(issues)
+        comment_text = mock_comment.call_args[0][2]
+        # The captured output should include the action line printed during processing
+        self.assertIn("Processing action", comment_text)
+
     def test_failed_bless_does_not_close_ticket(self):
         issues = [_make_issue("SES-1", "mappy", "e3sm_suite_a_gnu, BOTH, *")]
         _, _, mock_comment, mock_transition = self._run_poll(issues, bless_succeeds=False)
