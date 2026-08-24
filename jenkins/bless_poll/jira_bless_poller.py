@@ -32,7 +32,7 @@ JQL = (
     "ORDER BY created ASC"
 )
 
-RESOLVE_TRANSITION_NAMES = ["resolved", "resolve request", "resolve", "done", "close"]
+RESOLVE_TRANSITION_NAMES = ["resolve this issue", "resolved", "resolve request", "resolve", "done", "close"]
 
 # Fallback root directories (last resort), keyed by lowercase machine name.
 # Prefer CIME-derived CIME_OUTPUT_ROOT/J when possible.
