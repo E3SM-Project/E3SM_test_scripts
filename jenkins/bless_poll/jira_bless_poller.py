@@ -333,7 +333,7 @@ def build_bless_cmd(suite, cases, action, root=None, bless_dry_run=False):
     return cmd
 
 ###############################################################################
-def _invoke_bless(suite, cases, action, root, bless_dry_run=False):
+def _invoke_bless(suite, cases, action, root, indent, bless_dry_run=False):
 ###############################################################################
     """
     Run bless_test_results for one test suite, using the CIME Python API when
@@ -349,7 +349,10 @@ def _invoke_bless(suite, cases, action, root, bless_dry_run=False):
     if _setup_cime_path():
         try:
             from CIME.bless_test_results import bless_test_results as cime_bless
-            return cime_bless(
+            from CIME.utils import CIMEError
+            print(f"{indent}CIME import succeeded, invoking as library!")
+            print(f"{indent}############### BLESS_TEST_RESULT OUTPUT BEGINS HERE ##################")
+            success = cime_bless(
                 baseline_name=None,
                 baseline_root=None,
                 test_root=root,
@@ -361,15 +364,25 @@ def _invoke_bless(suite, cases, action, root, bless_dry_run=False):
                 bless_tests=None if cases == ["*"] else cases,
                 dry_run=bless_dry_run,
             )
+            print(f"{indent}############### BLESS_TEST_RESULT OUTPUT ENDS HERE ##################")
+            return success
         except ImportError:
             pass  # CIME found on path but bless_test_results not importable; fall through
+        except CIMEError as e:
+            print(f"{indent} bless_test_results raised error {e}")
+            print(f"{indent}############### BLESS_TEST_RESULT OUTPUT ENDS HERE ##################")
+            return False
+
 
     # Subprocess fallback
+    print(f"{indent}CIME import failed, invoking through shell!")
     cmd = build_bless_cmd(suite, cases, action, root=root, bless_dry_run=bless_dry_run)
     result = subprocess.run(cmd, capture_output=True, text=True)
     output = (result.stdout + result.stderr).strip()
     if output:
+        print(f"{indent}############### BLESS_TEST_RESULT OUTPUT BEGINS HERE ##################")
         print(output)
+        print(f"{indent}############### BLESS_TEST_RESULT OUTPUT ENDS HERE ##################")
     return result.returncode == 0
 
 ###############################################################################
@@ -445,7 +458,7 @@ def process_action(action, indent="", dry_run=False, bless_dry_run=False, root=N
 
     label = "BLESS-DRY-RUN" if bless_dry_run else "Running"
     print(f"{indent}{label}: {' '.join(cmd)}")
-    success = _invoke_bless(suite, cases, task, root, bless_dry_run=bless_dry_run)
+    success = _invoke_bless(suite, cases, task, root, indent + "  ", bless_dry_run=bless_dry_run)
     if not success:
         print(f"{indent}ERROR: bless_test_results failed for {suite}")
     else:
