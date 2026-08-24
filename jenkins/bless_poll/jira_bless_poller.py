@@ -550,11 +550,16 @@ def parse_command_line(args, description):
     parser = argparse.ArgumentParser(
         usage="""\n{0} --email <email> --token <token> [--machine <name>]
 OR
+{0} --action "suite, TASK, globs" [--machine <name>]
+OR
 {0} --help
 
 \033[1mEXAMPLES:\033[0m
     \033[1;32m# Poll Jira for bless requests on the current machine\033[0m
     > {0} --email you@example.com --token <api-token>
+
+    \033[1;32m# Run a single action directly without Jira\033[0m
+    > {0} --action "e3sm_developer_next_gnu, BOTH, ERS*"
 
     \033[1;32m# Specify a machine name explicitly\033[0m
     > {0} --email you@example.com --token <api-token> --machine mappy
@@ -570,16 +575,28 @@ OR
     )
 
     parser.add_argument(
+        "-a", "--action",
+        default=None,
+        metavar="ACTION",
+        help='Run a single action directly without polling Jira. '
+             'Format: "suite_name, TASK, glob1, glob2, ..." where TASK is NML, HIST, or BOTH. '
+             'Example: "e3sm_developer_next_gnu, BOTH, ERS*". '
+             'When this option is used --email and --token are not required.',
+    )
+
+    parser.add_argument(
         "-e", "--email",
-        required=True,
+        default=None,
         help="Atlassian account email for Jira authentication. "
+             "Required when not using --action. "
              "Get an API token at https://id.atlassian.com/manage-profile/security/api-tokens",
     )
 
     parser.add_argument(
         "-t", "--token",
-        required=True,
-        help="Atlassian API token, or a path to a file containing the token.",
+        default=None,
+        help="Atlassian API token, or a path to a file containing the token. "
+             "Required when not using --action.",
     )
 
     parser.add_argument(
@@ -642,6 +659,17 @@ OR
 def _main_func(description):
 ###############################################################################
     args = parse_command_line(sys.argv, description)
+
+    # Validate: email+token required unless --action
+    if not args.action:
+        if not args.email or not args.token:
+            print("ERROR: --email and --token are required when not using --action.")
+            sys.exit(1)
+
+    # Direct use of an action implies dry_run:
+    else:
+        args.bless_dry_run = True
+
     if args.test_connection:
         success = test_connection(args.email, args.token)
     else:
@@ -655,11 +683,11 @@ def _main_func(description):
         if args.user is not None:
             current_user = getpass.getuser()
             args.root = args.root.replace(current_user, args.user)
-        success = poll_jira_bless(**{k: v for k, v in vars(args).items()
-                                     if k not in ("test_connection", "user")})
+
+        if args.action:
+            success = process_action(args.action, "", dry_run=args.dry_run,
+                                     bless_dry_run=args.bless_dry_run, root=args.root)
+        else:
+            success = poll_jira_bless(**{k: v for k, v in vars(args).items()
+                                         if k not in ("test_connection", "user", "action")})
     sys.exit(0 if success else 1)
-
-###############################################################################
-
-if __name__ == "__main__":
-    _main_func(__doc__)

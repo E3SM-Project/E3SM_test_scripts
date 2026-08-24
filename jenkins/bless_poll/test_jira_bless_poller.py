@@ -42,7 +42,7 @@ def _make_parsed_args(**overrides):
     defaults = dict(
         email="e@e.com", token="tok", machine="mappy",
         root=None, dry_run=False, bless_dry_run=False,
-        tickets=None, test_connection=False, user=None,
+        tickets=None, test_connection=False, user=None, action=None,
     )
     defaults.update(overrides)
     return argparse.Namespace(**defaults)
@@ -690,6 +690,71 @@ class TestPollJiraBless(unittest.TestCase):
         success, mock_invoke = self._run_poll(issues, tickets=None)
         self.assertTrue(success)
         self.assertEqual(mock_invoke.call_count, 2)
+
+###############################################################################
+
+###############################################################################
+class TestDirectActionMode(unittest.TestCase):
+###############################################################################
+    """Tests for the --action mode that bypasses Jira."""
+
+    _ROOT = "/scratch/J"
+
+    def _run_main_with_action(self, action_str, **ns_overrides):
+        """Run _main_func with --action set, return what process_action received."""
+        captured = {}
+        def fake_process(action, indent, dry_run, bless_dry_run, root):
+            captured["action"]       = action
+            captured["dry_run"]      = dry_run
+            captured["bless_dry_run"]= bless_dry_run
+            captured["root"]         = root
+            return True
+
+        args = _make_parsed_args(action=action_str, root=self._ROOT, **ns_overrides)
+        with patch.object(jbp, "parse_command_line", return_value=args), \
+             patch.object(jbp, "_resolve_root",      return_value=self._ROOT), \
+             patch.object(jbp, "process_action",     side_effect=fake_process), \
+             patch("sys.exit"):
+            jbp._main_func("test")
+        return captured
+
+    def test_action_mode_calls_process_action(self):
+        captured = self._run_main_with_action("e3sm_developer_next_gnu, BOTH, ERS*")
+        self.assertEqual(captured["action"], "e3sm_developer_next_gnu, BOTH, ERS*")
+
+    def test_action_mode_passes_root(self):
+        captured = self._run_main_with_action("e3sm_developer_next_gnu, BOTH, ERS*")
+        self.assertEqual(captured["root"], self._ROOT)
+
+    def test_action_mode_forwards_dry_run(self):
+        captured = self._run_main_with_action("e3sm_developer_next_gnu, BOTH, ERS*", dry_run=True)
+        self.assertTrue(captured["dry_run"])
+
+    def test_action_mode_forwards_bless_dry_run(self):
+        captured = self._run_main_with_action("e3sm_developer_next_gnu, BOTH, ERS*", bless_dry_run=True)
+        self.assertTrue(captured["bless_dry_run"])
+
+    def test_action_mode_does_not_call_poll_jira(self):
+        args = _make_parsed_args(action="e3sm_developer_next_gnu, BOTH, ERS*", root=self._ROOT)
+        with patch.object(jbp, "parse_command_line", return_value=args), \
+             patch.object(jbp, "_resolve_root",      return_value=self._ROOT), \
+             patch.object(jbp, "process_action",     return_value=True), \
+             patch.object(jbp, "poll_jira_bless")    as mock_poll, \
+             patch("sys.exit"):
+            jbp._main_func("test")
+        mock_poll.assert_not_called()
+
+    def test_no_email_token_allowed_with_action(self):
+        """--action mode must not crash when email/token are absent."""
+        args = _make_parsed_args(action="e3sm_developer_next_gnu, BOTH, ERS*",
+                                 root=self._ROOT, email=None, token=None)
+        with patch.object(jbp, "parse_command_line", return_value=args), \
+             patch.object(jbp, "_resolve_root",      return_value=self._ROOT), \
+             patch.object(jbp, "process_action",     return_value=True), \
+             patch("sys.exit") as mock_exit:
+            jbp._main_func("test")
+        # Should exit 0, not exit 1 (no "missing email/token" error)
+        mock_exit.assert_called_with(0)
 
 ###############################################################################
 
