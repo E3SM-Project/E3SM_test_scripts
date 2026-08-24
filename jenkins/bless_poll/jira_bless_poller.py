@@ -353,7 +353,7 @@ def _invoke_bless(suite, cases, action, root, indent, bless_dry_run=False):
             from CIME.utils import CIMEError, configure_logging
             configure_logging(verbose=False, debug=False, silent=False)
             print(f"{indent}CIME import succeeded, invoking as library!")
-            print(f"{indent}############### BLESS_TEST_RESULT OUTPUT BEGINS HERE ##################")
+            print(f"{indent}=============== BLESS_TEST_RESULT OUTPUT BEGINS HERE ==================")
             success = cime_bless(
                 baseline_name=None,
                 baseline_root=None,
@@ -366,13 +366,13 @@ def _invoke_bless(suite, cases, action, root, indent, bless_dry_run=False):
                 bless_tests=None if cases == ["*"] else cases,
                 dry_run=bless_dry_run,
             )
-            print(f"{indent}############### BLESS_TEST_RESULT OUTPUT ENDS HERE ##################")
+            print(f"{indent}=============== BLESS_TEST_RESULT OUTPUT ENDS HERE ==================")
             return success
         except ImportError:
             pass  # CIME found on path but bless_test_results not importable; fall through
         except CIMEError as e:
             print(f"{indent} bless_test_results raised error {e}")
-            print(f"{indent}############### BLESS_TEST_RESULT OUTPUT ENDS HERE ##################")
+            print(f"{indent}=============== BLESS_TEST_RESULT OUTPUT ENDS HERE ==================")
             return False
 
 
@@ -382,9 +382,9 @@ def _invoke_bless(suite, cases, action, root, indent, bless_dry_run=False):
     result = subprocess.run(cmd, capture_output=True, text=True)
     output = (result.stdout + result.stderr).strip()
     if output:
-        print(f"{indent}############### BLESS_TEST_RESULT OUTPUT BEGINS HERE ##################")
+        print(f"{indent}=============== BLESS_TEST_RESULT OUTPUT BEGINS HERE ==================")
         print(output)
-        print(f"{indent}############### BLESS_TEST_RESULT OUTPUT ENDS HERE ##################")
+        print(f"{indent}=============== BLESS_TEST_RESULT OUTPUT ENDS HERE ==================")
     return result.returncode == 0
 
 ###############################################################################
