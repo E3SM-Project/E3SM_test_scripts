@@ -33,6 +33,11 @@ JQL = (
 
 RESOLVE_TRANSITION_NAMES = ["resolved", "resolve request", "resolve", "done", "close"]
 
+# Default scratch root directories, keyed by lowercase machine name.
+MACHINE_ROOTS = {
+    "mappy":      "/ascldap/users/e3sm-jenkins/acme/scratch/J",
+}
+
 ###############################################################################
 def _ssl_ctx():
 ###############################################################################
@@ -235,16 +240,19 @@ def parse_suite(suite):
     return test_id, compiler
 
 ###############################################################################
-def build_bless_cmd(suite, cases, action):
+def build_bless_cmd(suite, cases, action, root=None):
 ###############################################################################
     """
     Return the bless_test_results argv list for one test suite.
     Parses suite into test_id (-t) and compiler (-c).
     -f (force) is always added once.
     Case globs are positional arguments; omitted when cases is ["*"] (all cases).
+    If root is provided it is passed as -r <root>.
     """
     test_id, compiler = parse_suite(suite)
     cmd = [BLESS_SCRIPT, "-t", test_id, "-c", compiler, "-f"]
+    if root:
+        cmd += ["-r", root]
     if cases != ["*"]:
         cmd += cases
     if action == "hists":
@@ -284,7 +292,7 @@ def test_connection(email, token):
         return False
 
 ###############################################################################
-def process_action(action, indent="", dry_run=False):
+def process_action(action, indent="", dry_run=False, root=None):
 ###############################################################################
     """
     Parse and execute a single bless action string of the form:
@@ -308,7 +316,7 @@ def process_action(action, indent="", dry_run=False):
         return False
 
     try:
-        cmd = build_bless_cmd(suite, cases, TASK_MAP[task_raw])
+        cmd = build_bless_cmd(suite, cases, TASK_MAP[task_raw], root=root)
     except ValueError as exc:
         print(f"{indent}ERROR: {exc}")
         return False
@@ -331,7 +339,7 @@ def process_action(action, indent="", dry_run=False):
     return True
 
 ###############################################################################
-def poll_jira_bless(email, token, machine, dry_run):
+def poll_jira_bless(email, token, machine, dry_run, root):
 ###############################################################################
 
     headers = _auth_headers(email, token)
@@ -391,7 +399,7 @@ def poll_jira_bless(email, token, machine, dry_run):
             if action:
                 print(f"{indent}Processing action: {action}")
 
-                success = process_action(action, indent + "  ", dry_run=dry_run)
+                success = process_action(action, indent + "  ", dry_run=dry_run, root=root)
                 if success:
                     processed += 1
                 else:
@@ -446,6 +454,13 @@ OR
     )
 
     parser.add_argument(
+        "-r", "--root",
+        default=None,
+        help="Root scratch directory passed to bless_test_results via -r. "
+             f"Defaults to a per-machine lookup (known machines: {list(MACHINE_ROOTS.keys())}).",
+    )
+
+    parser.add_argument(
         "-n", "--dry-run",
         default=False,
         action="store_true",
@@ -469,6 +484,14 @@ def _main_func(description):
     if args.test_connection:
         success = test_connection(args.email, args.token)
     else:
+        if args.root is None:
+            machine_key = args.machine.lower()
+            if machine_key not in MACHINE_ROOTS:
+                print(f"ERROR: no default root for machine {args.machine!r}. "
+                      f"Known machines: {list(MACHINE_ROOTS.keys())}. "
+                      f"Use -r/--root to specify a root directory.")
+                sys.exit(1)
+            args.root = MACHINE_ROOTS[machine_key]
         success = poll_jira_bless(**{k: v for k, v in vars(args).items()
                                      if k != "test_connection"})
     sys.exit(0 if success else 1)

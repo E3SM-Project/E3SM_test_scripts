@@ -172,6 +172,15 @@ class TestParseSuite(unittest.TestCase):
 class TestBuildBlessCmd(unittest.TestCase):
 ###############################################################################
 
+    def test_root_passed_to_command(self):
+        cmd = jbp.build_bless_cmd("e3sm_developer_next_gnu", ["ERS*"], "both", root="/my/root")
+        self.assertIn("-r", cmd)
+        self.assertEqual(cmd[cmd.index("-r") + 1], "/my/root")
+
+    def test_no_root_omits_r_flag(self):
+        cmd = jbp.build_bless_cmd("e3sm_developer_next_gnu", ["ERS*"], "both", root=None)
+        self.assertNotIn("-r", cmd)
+
     def test_action_both(self):
         cmd = jbp.build_bless_cmd("e3sm_developer_next_gnu", ["ERS*"], "both")
         self.assertIn("-t", cmd)
@@ -225,6 +234,14 @@ class TestBuildBlessCmd(unittest.TestCase):
 ###############################################################################
 class TestProcessAction(unittest.TestCase):
 ###############################################################################
+
+    def test_root_forwarded_to_build_cmd(self):
+        mock_result = MagicMock(returncode=0, stdout="", stderr="")
+        with patch("subprocess.run", return_value=mock_result) as mock_run:
+            jbp.process_action("e3sm_developer_next_gnu, BOTH, ERS*", root="/custom/root")
+            cmd = mock_run.call_args[0][0]
+            self.assertIn("-r", cmd)
+            self.assertEqual(cmd[cmd.index("-r") + 1], "/custom/root")
 
     def test_too_few_parts_returns_false(self):
         self.assertFalse(jbp.process_action("only_suite, NML"))
@@ -302,10 +319,30 @@ class TestProcessAction(unittest.TestCase):
             self.assertEqual(cmd[cmd.index("-c") + 1], "gnu")
 
 ###############################################################################
+class TestMachineRoots(unittest.TestCase):
+###############################################################################
+
+    def test_mappy_has_default_root(self):
+        self.assertIn("mappy", jbp.MACHINE_ROOTS)
+        self.assertTrue(jbp.MACHINE_ROOTS["mappy"])
+
+    def test_poll_uses_root_in_command(self):
+        issues = [_make_issue("SES-1", "mappy", "e3sm_developer_next_gnu, BOTH, ERS*")]
+        mock_proc = MagicMock(returncode=0, stdout="", stderr="")
+        with patch.object(jbp, "_auth_headers", return_value={}), \
+             patch.object(jbp, "discover_field_ids", return_value=FAKE_FIELD_MAP), \
+             patch.object(jbp, "search_issues", return_value=issues), \
+             patch("subprocess.run", return_value=mock_proc) as mock_run:
+            jbp.poll_jira_bless("u@e.com", "tok", "mappy", False, "/a/b")
+            cmd = mock_run.call_args[0][0]
+            self.assertIn("-r", cmd)
+            self.assertEqual(cmd[cmd.index("-r") + 1], "/a/b")
+
+###############################################################################
 class TestPollJiraBless(unittest.TestCase):
 ###############################################################################
 
-    def _run_poll(self, issues, machine="mappy", dry_run=False):
+    def _run_poll(self, issues, machine="mappy", dry_run=False, root="/fake/root"):
         """
         Run poll_jira_bless with all Jira I/O mocked out.
         Returns (success, subprocess_calls).
@@ -315,7 +352,7 @@ class TestPollJiraBless(unittest.TestCase):
              patch.object(jbp, "discover_field_ids", return_value=FAKE_FIELD_MAP), \
              patch.object(jbp, "search_issues", return_value=issues), \
              patch("subprocess.run", return_value=mock_proc) as mock_run:
-            success = jbp.poll_jira_bless("user@example.com", "token", machine, dry_run)
+            success = jbp.poll_jira_bless("user@example.com", "token", machine, dry_run, root)
             return success, mock_run
 
     def test_no_tickets_returns_success(self):
@@ -381,7 +418,7 @@ class TestPollJiraBless(unittest.TestCase):
              patch.object(jbp, "discover_field_ids", return_value=FAKE_FIELD_MAP), \
              patch.object(jbp, "search_issues", return_value=issues), \
              patch("subprocess.run", return_value=mock_proc):
-            success = jbp.poll_jira_bless("user@example.com", "token", "mappy", False)
+            success = jbp.poll_jira_bless("user@example.com", "token", "mappy", False, "/fake/root")
         self.assertFalse(success)
 
     def test_machine_match_is_case_insensitive(self):
