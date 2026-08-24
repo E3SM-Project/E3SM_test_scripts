@@ -319,6 +319,37 @@ class TestProcessAction(unittest.TestCase):
             self.assertEqual(cmd[cmd.index("-c") + 1], "gnu")
 
 ###############################################################################
+class TestResolveRoot(unittest.TestCase):
+###############################################################################
+
+    def test_cime_path_used_when_available(self):
+        mock_machines = MagicMock()
+        mock_machines.return_value.get_value.return_value = "/scratch/jenkins"
+        with patch.dict("sys.modules", {"CIME": MagicMock(), "CIME.XML": MagicMock(),
+                                        "CIME.XML.machines": MagicMock(Machines=mock_machines)}), \
+             patch.object(jbp, "_setup_cime_path", return_value=True):
+            root = jbp._resolve_root("mappy")
+        self.assertEqual(root, "/scratch/jenkins/J")
+
+    def test_falls_back_to_machine_roots_when_cime_fails(self):
+        with patch.object(jbp, "_setup_cime_path", return_value=False):
+            root = jbp._resolve_root("mappy")
+        self.assertEqual(root, jbp.MACHINE_ROOTS["mappy"])
+
+    def test_returns_none_for_unknown_machine_without_cime(self):
+        with patch.object(jbp, "_setup_cime_path", return_value=False):
+            root = jbp._resolve_root("unknownmachine")
+        self.assertIsNone(root)
+
+    def test_cime_exception_falls_back_to_machine_roots(self):
+        mock_machines = MagicMock(side_effect=Exception("CIME exploded"))
+        with patch.dict("sys.modules", {"CIME": MagicMock(), "CIME.XML": MagicMock(),
+                                        "CIME.XML.machines": MagicMock(Machines=mock_machines)}), \
+             patch.object(jbp, "_setup_cime_path", return_value=True):
+            root = jbp._resolve_root("mappy")
+        self.assertEqual(root, jbp.MACHINE_ROOTS["mappy"])
+
+###############################################################################
 class TestMachineRoots(unittest.TestCase):
 ###############################################################################
 

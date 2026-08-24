@@ -33,10 +33,72 @@ JQL = (
 
 RESOLVE_TRANSITION_NAMES = ["resolved", "resolve request", "resolve", "done", "close"]
 
-# Default scratch root directories, keyed by lowercase machine name.
+# Fallback root directories (last resort), keyed by lowercase machine name.
+# Prefer CIME-derived CIME_OUTPUT_ROOT/J when possible.
 MACHINE_ROOTS = {
-    "mappy":      "/ascldap/users/e3sm-jenkins/acme/scratch/J",
+    "mappy": "/ascldap/users/e3sm-jenkins/acme/scratch/J",
 }
+
+###############################################################################
+def _setup_cime_path():
+###############################################################################
+    """
+    Add the CIME Python library to sys.path if not already importable.
+    Assumes the E3SM repo (containing cime/) lives two directories above this
+    script's repo root (i.e. ../../../E3SM relative to this file).
+    """
+    try:
+        import CIME  # noqa: F401 - already on path
+        return True
+    except ImportError:
+        pass
+    # Walk up from this file: .../E3SM_test_scripts/jenkins/bless_poll/jira_bless_poller.py
+    # → repo root is 2 levels up, then sibling E3SM/cime holds CIME
+    script_dir = pathlib.Path(__file__).resolve().parent
+    for candidate in [
+        script_dir.parent.parent / "E3SM" / "cime",  # sibling layout
+        script_dir.parent.parent.parent / "E3SM" / "cime",  # one level deeper
+        pathlib.Path("/E3SM/cime"),  # absolute fallback
+    ]:
+        if (candidate / "CIME").is_dir():
+            sys.path.insert(0, str(candidate))
+            try:
+                import CIME  # noqa: F401
+                return True
+            except ImportError:
+                sys.path.pop(0)
+    return False
+
+###############################################################################
+def _resolve_root(machine):
+###############################################################################
+    """
+    Determine the bless root directory for *machine* using the following
+    priority order:
+
+    1. CIME: instantiate a Machines object and read CIME_OUTPUT_ROOT, then
+       append "J".
+    2. MACHINE_ROOTS dict: hard-coded fallback values.
+    3. Return None (caller must error out or require --root).
+    """
+    machine_key = machine.lower()
+
+    # 1. Try CIME
+    if _setup_cime_path():
+        try:
+            from CIME.XML.machines import Machines
+            m = Machines(machine=machine_key)
+            output_root = m.get_value("CIME_OUTPUT_ROOT")
+            if output_root:
+                return str(pathlib.Path(output_root) / "J")
+        except Exception:
+            pass
+
+    # 2. Hard-coded fallback
+    if machine_key in MACHINE_ROOTS:
+        return MACHINE_ROOTS[machine_key]
+
+    return None
 
 ###############################################################################
 def _ssl_ctx():
@@ -448,16 +510,17 @@ OR
 
     parser.add_argument(
         "-m", "--machine",
-        default=socket.gethostname(),
+        default=os.environ.get("CIME_MACHINE", socket.gethostname()),
         help="Machine name to match against Jira ticket Machine field "
-             "(default: current hostname).",
+             "(default: $CIME_MACHINE env var, then current hostname).",
     )
 
     parser.add_argument(
         "-r", "--root",
         default=None,
         help="Root scratch directory passed to bless_test_results via -r. "
-             f"Defaults to a per-machine lookup (known machines: {list(MACHINE_ROOTS.keys())}).",
+             "Defaults to CIME_OUTPUT_ROOT/J (via CIME), then a built-in "
+             f"per-machine table (known: {list(MACHINE_ROOTS.keys())}).",
     )
 
     parser.add_argument(
@@ -485,13 +548,12 @@ def _main_func(description):
         success = test_connection(args.email, args.token)
     else:
         if args.root is None:
-            machine_key = args.machine.lower()
-            if machine_key not in MACHINE_ROOTS:
-                print(f"ERROR: no default root for machine {args.machine!r}. "
-                      f"Known machines: {list(MACHINE_ROOTS.keys())}. "
-                      f"Use -r/--root to specify a root directory.")
-                sys.exit(1)
-            args.root = MACHINE_ROOTS[machine_key]
+            args.root = _resolve_root(args.machine)
+        if args.root is None:
+            print(f"ERROR: could not determine a root directory for machine {args.machine!r}. "
+                  f"CIME lookup failed and machine is not in the built-in table "
+                  f"({list(MACHINE_ROOTS.keys())}). Use -r/--root to specify one.")
+            sys.exit(1)
         success = poll_jira_bless(**{k: v for k, v in vars(args).items()
                                      if k != "test_connection"})
     sys.exit(0 if success else 1)
