@@ -6,4 +6,4 @@ export CIME_MACHINE=pm-gpu
 export SCREAM_MACHINE=$CIME_MACHINE
 source $SCRIPTROOT/util/setup_common.sh
 
-$RUNSCRIPT -t e3sm_omega_developer --compiler=gnugpu
+$RUNSCRIPT -t e3sm_omega_developer -p omega --compiler=gnugpu

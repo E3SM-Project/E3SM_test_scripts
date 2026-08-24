@@ -6,4 +6,4 @@ export CIME_MACHINE=chrysalis
 export SCREAM_MACHINE=$CIME_MACHINE
 source $SCRIPTROOT/util/setup_common.sh
 
-$RUNSCRIPT -t e3sm_omega_developer --compiler=intel
+$RUNSCRIPT -t e3sm_omega_developer -p omega --compiler=intel
