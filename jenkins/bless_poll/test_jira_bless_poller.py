@@ -373,7 +373,7 @@ class TestMachineRoots(unittest.TestCase):
 class TestPollJiraBless(unittest.TestCase):
 ###############################################################################
 
-    def _run_poll(self, issues, machine="mappy", dry_run=False, root="/fake/root"):
+    def _run_poll(self, issues, machine="mappy", dry_run=False, root="/fake/root", tickets=None):
         """
         Run poll_jira_bless with all Jira I/O mocked out.
         Returns (success, subprocess_calls).
@@ -383,7 +383,8 @@ class TestPollJiraBless(unittest.TestCase):
              patch.object(jbp, "discover_field_ids", return_value=FAKE_FIELD_MAP), \
              patch.object(jbp, "search_issues", return_value=issues), \
              patch("subprocess.run", return_value=mock_proc) as mock_run:
-            success = jbp.poll_jira_bless("user@example.com", "token", machine, dry_run, root)
+            success = jbp.poll_jira_bless("user@example.com", "token", machine, dry_run, root,
+                                          tickets=tickets)
             return success, mock_run
 
     def test_no_tickets_returns_success(self):
@@ -457,6 +458,37 @@ class TestPollJiraBless(unittest.TestCase):
         success, mock_run = self._run_poll(issues, machine="mappy")
         self.assertTrue(success)
         mock_run.assert_called_once()
+
+    def test_ticket_filter_limits_processing(self):
+        issues = [
+            _make_issue("SES-1", "mappy", "e3sm_suite_a_gnu, BOTH, *"),
+            _make_issue("SES-2", "mappy", "e3sm_suite_b_gnu, BOTH, *"),
+            _make_issue("SES-3", "mappy", "e3sm_suite_c_gnu, BOTH, *"),
+        ]
+        success, mock_run = self._run_poll(issues, tickets=["SES-2"])
+        self.assertTrue(success)
+        self.assertEqual(mock_run.call_count, 1)
+
+    def test_ticket_filter_is_case_insensitive(self):
+        issues = [_make_issue("SES-42", "mappy", "e3sm_suite_a_gnu, BOTH, *")]
+        success, mock_run = self._run_poll(issues, tickets=["ses-42"])
+        self.assertTrue(success)
+        mock_run.assert_called_once()
+
+    def test_ticket_filter_no_match_runs_nothing(self):
+        issues = [_make_issue("SES-1", "mappy", "e3sm_suite_a_gnu, BOTH, *")]
+        success, mock_run = self._run_poll(issues, tickets=["SES-99"])
+        self.assertTrue(success)
+        mock_run.assert_not_called()
+
+    def test_no_ticket_filter_processes_all(self):
+        issues = [
+            _make_issue("SES-1", "mappy", "e3sm_suite_a_gnu, BOTH, *"),
+            _make_issue("SES-2", "mappy", "e3sm_suite_b_gnu, BOTH, *"),
+        ]
+        success, mock_run = self._run_poll(issues, tickets=None)
+        self.assertTrue(success)
+        self.assertEqual(mock_run.call_count, 2)
 
 ###############################################################################
 

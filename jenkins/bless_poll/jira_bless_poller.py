@@ -407,11 +407,12 @@ def process_action(action, indent="", dry_run=False, root=None):
     return True
 
 ###############################################################################
-def poll_jira_bless(email, token, machine, dry_run, root):
+def poll_jira_bless(email, token, machine, dry_run, root, tickets=None):
 ###############################################################################
 
     headers = _auth_headers(email, token)
     machine = machine.lower()
+    ticket_filter = {t.upper() for t in tickets} if tickets else None
 
     print(f"Polling {JIRA_BASE_URL} | project: {PROJECT_KEY} | machine: {machine}")
 
@@ -438,6 +439,11 @@ def poll_jira_bless(email, token, machine, dry_run, root):
         fields  = issue["fields"]
         summary = fields.get("summary", "")
         print(f"{indent}[{key}] {summary}")
+
+        # Apply ticket ID filter if specified
+        if ticket_filter and key.upper() not in ticket_filter:
+            print(f"{indent}  SKIP: not in ticket filter")
+            continue
 
         # Check issue has machine name match
         indent += "  "
@@ -527,6 +533,15 @@ OR
         help="Root scratch directory passed to bless_test_results via -r. "
              "Defaults to CIME_OUTPUT_ROOT/J (via CIME), then a built-in "
              f"per-machine table (known: {list(MACHINE_ROOTS.keys())}).",
+    )
+
+    parser.add_argument(
+        "--tickets",
+        nargs="+",
+        metavar="TICKET_ID",
+        default=None,
+        help="Limit processing to these specific ticket IDs (e.g. SES-42 SES-43). "
+             "By default all open tickets for the machine are processed.",
     )
 
     parser.add_argument(
