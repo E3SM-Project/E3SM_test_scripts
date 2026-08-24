@@ -64,6 +64,7 @@ def _setup_cime_path():
             sys.path.insert(0, str(candidate))
             try:
                 import CIME  # noqa: F401
+                print(f"Found E3SM here: {candidate}")
                 return True
             except ImportError:
                 sys.path.pop(0)
@@ -447,7 +448,7 @@ def process_action(action, indent="", dry_run=False, bless_dry_run=False, root=N
 
     # Parse early so we can validate and display before running
     try:
-        cmd = build_bless_cmd(suite, cases, task, root=root)
+        cmd = build_bless_cmd(suite, cases, task, root=root, bless_dry_run=bless_dry_run)
     except ValueError as exc:
         print(f"{indent}ERROR: {exc}")
         return False
