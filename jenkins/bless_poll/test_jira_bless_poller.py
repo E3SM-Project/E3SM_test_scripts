@@ -568,7 +568,9 @@ class TestMachineRoots(unittest.TestCase):
         with patch.object(jbp, "_auth_headers", return_value={}), \
              patch.object(jbp, "discover_field_ids", return_value=FAKE_FIELD_MAP), \
              patch.object(jbp, "search_issues", return_value=issues), \
-             patch.object(jbp, "_invoke_bless", return_value=True) as mock_invoke:
+             patch.object(jbp, "_invoke_bless", return_value=True) as mock_invoke, \
+             patch.object(jbp, "add_comment", return_value=None), \
+             patch.object(jbp, "transition_issue", return_value="done"):
             jbp.poll_jira_bless("u@e.com", "tok", "mappy", False, "/a/b")
             _, _, _, root, _ = mock_invoke.call_args[0]
             self.assertEqual(root, "/a/b")
@@ -577,27 +579,30 @@ class TestMachineRoots(unittest.TestCase):
 class TestPollJiraBless(unittest.TestCase):
 ###############################################################################
 
-    def _run_poll(self, issues, machine="mappy", dry_run=False, root="/fake/root", tickets=None):
+    def _run_poll(self, issues, machine="mappy", dry_run=False, bless_dry_run=False,
+                  root="/fake/root", tickets=None, bless_succeeds=True):
         """
         Run poll_jira_bless with all Jira I/O and bless invocation mocked out.
-        Returns (success, mock_invoke) where mock_invoke is the _invoke_bless mock.
+        Returns (success, mock_invoke, mock_comment, mock_transition).
         """
-        with patch.object(jbp, "_auth_headers", return_value={}), \
-             patch.object(jbp, "discover_field_ids", return_value=FAKE_FIELD_MAP), \
-             patch.object(jbp, "search_issues", return_value=issues), \
-             patch.object(jbp, "_invoke_bless", return_value=True) as mock_invoke:
+        with patch.object(jbp, "_auth_headers",      return_value={}), \
+             patch.object(jbp, "discover_field_ids",  return_value=FAKE_FIELD_MAP), \
+             patch.object(jbp, "search_issues",       return_value=issues), \
+             patch.object(jbp, "_invoke_bless",       return_value=bless_succeeds) as mock_invoke, \
+             patch.object(jbp, "add_comment",         return_value=None) as mock_comment, \
+             patch.object(jbp, "transition_issue",    return_value="done") as mock_transition:
             success = jbp.poll_jira_bless("user@example.com", "token", machine, dry_run, root,
-                                          tickets=tickets)
-            return success, mock_invoke
+                                          bless_dry_run=bless_dry_run, tickets=tickets)
+            return success, mock_invoke, mock_comment, mock_transition
 
     def test_no_tickets_returns_success(self):
-        success, mock_invoke = self._run_poll([])
+        success, mock_invoke, _, _ = self._run_poll([])
         self.assertTrue(success)
         mock_invoke.assert_not_called()
 
     def test_matching_ticket_runs_bless(self):
         issues = [_make_issue("SES-1", "mappy", "e3sm_developer_next_gnu, BOTH, ERS*")]
-        success, mock_invoke = self._run_poll(issues, machine="mappy")
+        success, mock_invoke, _, _ = self._run_poll(issues, machine="mappy")
         self.assertTrue(success)
         mock_invoke.assert_called_once()
         suite, cases, action, root, _ = mock_invoke.call_args[0]
@@ -606,26 +611,26 @@ class TestPollJiraBless(unittest.TestCase):
 
     def test_wrong_machine_skips_ticket(self):
         issues = [_make_issue("SES-1", "chrysalis", "e3sm_developer_next_gnu, BOTH, ERS*")]
-        success, mock_invoke = self._run_poll(issues, machine="mappy")
+        success, mock_invoke, _, _ = self._run_poll(issues, machine="mappy")
         self.assertTrue(success)
         mock_invoke.assert_not_called()
 
     def test_no_machine_set_skips_ticket(self):
         issues = [_make_issue("SES-1", None, "e3sm_developer_next_gnu, BOTH, ERS*")]
-        success, mock_invoke = self._run_poll(issues, machine="mappy")
+        success, mock_invoke, _, _ = self._run_poll(issues, machine="mappy")
         self.assertTrue(success)
         mock_invoke.assert_not_called()
 
     def test_empty_description_skips_ticket(self):
         issues = [_make_issue("SES-1", "mappy", "")]
-        success, mock_invoke = self._run_poll(issues, machine="mappy")
+        success, mock_invoke, _, _ = self._run_poll(issues, machine="mappy")
         self.assertTrue(success)
         mock_invoke.assert_not_called()
 
     def test_multiple_actions_each_run(self):
         desc = "e3sm_suite_a_gnu, BOTH, ERS*\ne3sm_suite_b_intel, HIST, SMS*"
         issues = [_make_issue("SES-1", "mappy", desc)]
-        success, mock_invoke = self._run_poll(issues, machine="mappy")
+        success, mock_invoke, _, _ = self._run_poll(issues, machine="mappy")
         self.assertTrue(success)
         self.assertEqual(mock_invoke.call_count, 2)
 
@@ -635,28 +640,24 @@ class TestPollJiraBless(unittest.TestCase):
             _make_issue("SES-2", "chrysalis", "e3sm_suite_b_intel, BOTH, *"),
             _make_issue("SES-3", "mappy",    "e3sm_suite_c_gnu, NML, ERS*"),
         ]
-        success, mock_invoke = self._run_poll(issues, machine="mappy")
+        success, mock_invoke, _, _ = self._run_poll(issues, machine="mappy")
         self.assertTrue(success)
         self.assertEqual(mock_invoke.call_count, 2)
 
     def test_dry_run_does_not_call_invoke(self):
         issues = [_make_issue("SES-1", "mappy", "e3sm_suite_a_gnu, BOTH, ERS*")]
-        success, mock_invoke = self._run_poll(issues, machine="mappy", dry_run=True)
+        success, mock_invoke, _, _ = self._run_poll(issues, machine="mappy", dry_run=True)
         self.assertTrue(success)
         mock_invoke.assert_not_called()
 
     def test_failed_action_returns_failure(self):
         issues = [_make_issue("SES-1", "mappy", "e3sm_suite_a_gnu, BOTH, ERS*")]
-        with patch.object(jbp, "_auth_headers", return_value={}), \
-             patch.object(jbp, "discover_field_ids", return_value=FAKE_FIELD_MAP), \
-             patch.object(jbp, "search_issues", return_value=issues), \
-             patch.object(jbp, "_invoke_bless", return_value=False):
-            success = jbp.poll_jira_bless("user@example.com", "token", "mappy", False, "/fake/root")
+        success, _, _, _ = self._run_poll(issues, machine="mappy", bless_succeeds=False)
         self.assertFalse(success)
 
     def test_machine_match_is_case_insensitive(self):
         issues = [_make_issue("SES-1", "Mappy", "e3sm_suite_a_gnu, BOTH, *")]
-        success, mock_invoke = self._run_poll(issues, machine="mappy")
+        success, mock_invoke, _, _ = self._run_poll(issues, machine="mappy")
         self.assertTrue(success)
         mock_invoke.assert_called_once()
 
@@ -666,19 +667,19 @@ class TestPollJiraBless(unittest.TestCase):
             _make_issue("SES-2", "mappy", "e3sm_suite_b_gnu, BOTH, *"),
             _make_issue("SES-3", "mappy", "e3sm_suite_c_gnu, BOTH, *"),
         ]
-        success, mock_invoke = self._run_poll(issues, tickets=["SES-2"])
+        success, mock_invoke, _, _ = self._run_poll(issues, tickets=["SES-2"])
         self.assertTrue(success)
         self.assertEqual(mock_invoke.call_count, 1)
 
     def test_ticket_filter_is_case_insensitive(self):
         issues = [_make_issue("SES-42", "mappy", "e3sm_suite_a_gnu, BOTH, *")]
-        success, mock_invoke = self._run_poll(issues, tickets=["ses-42"])
+        success, mock_invoke, _, _ = self._run_poll(issues, tickets=["ses-42"])
         self.assertTrue(success)
         mock_invoke.assert_called_once()
 
     def test_ticket_filter_no_match_runs_nothing(self):
         issues = [_make_issue("SES-1", "mappy", "e3sm_suite_a_gnu, BOTH, *")]
-        success, mock_invoke = self._run_poll(issues, tickets=["SES-99"])
+        success, mock_invoke, _, _ = self._run_poll(issues, tickets=["SES-99"])
         self.assertTrue(success)
         mock_invoke.assert_not_called()
 
@@ -687,9 +688,50 @@ class TestPollJiraBless(unittest.TestCase):
             _make_issue("SES-1", "mappy", "e3sm_suite_a_gnu, BOTH, *"),
             _make_issue("SES-2", "mappy", "e3sm_suite_b_gnu, BOTH, *"),
         ]
-        success, mock_invoke = self._run_poll(issues, tickets=None)
+        success, mock_invoke, _, _ = self._run_poll(issues, tickets=None)
         self.assertTrue(success)
         self.assertEqual(mock_invoke.call_count, 2)
+
+    def test_successful_bless_closes_ticket(self):
+        issues = [_make_issue("SES-1", "mappy", "e3sm_suite_a_gnu, BOTH, *")]
+        _, _, mock_comment, mock_transition = self._run_poll(issues)
+        mock_comment.assert_called_once_with({}, "SES-1", unittest.mock.ANY)
+        mock_transition.assert_called_once_with({}, "SES-1")
+
+    def test_failed_bless_does_not_close_ticket(self):
+        issues = [_make_issue("SES-1", "mappy", "e3sm_suite_a_gnu, BOTH, *")]
+        _, _, mock_comment, mock_transition = self._run_poll(issues, bless_succeeds=False)
+        mock_comment.assert_not_called()
+        mock_transition.assert_not_called()
+
+    def test_dry_run_does_not_close_ticket(self):
+        issues = [_make_issue("SES-1", "mappy", "e3sm_suite_a_gnu, BOTH, *")]
+        _, _, mock_comment, mock_transition = self._run_poll(issues, dry_run=True)
+        mock_comment.assert_not_called()
+        mock_transition.assert_not_called()
+
+    def test_bless_dry_run_does_not_close_ticket(self):
+        issues = [_make_issue("SES-1", "mappy", "e3sm_suite_a_gnu, BOTH, *")]
+        # bless_dry_run goes through _invoke_bless but should not close the ticket
+        _, _, mock_comment, mock_transition = self._run_poll(issues, bless_dry_run=True)
+        mock_comment.assert_not_called()
+        mock_transition.assert_not_called()
+
+    def test_partial_failure_does_not_close_ticket(self):
+        """If any action fails, the ticket should not be closed."""
+        desc = "e3sm_suite_a_gnu, BOTH, ERS*\ne3sm_suite_b_gnu, BOTH, SMS*"
+        issues = [_make_issue("SES-1", "mappy", desc)]
+        # First action succeeds, second fails
+        side_effects = [True, False]
+        with patch.object(jbp, "_auth_headers",     return_value={}), \
+             patch.object(jbp, "discover_field_ids", return_value=FAKE_FIELD_MAP), \
+             patch.object(jbp, "search_issues",      return_value=issues), \
+             patch.object(jbp, "_invoke_bless",      side_effect=side_effects), \
+             patch.object(jbp, "add_comment",        return_value=None) as mock_comment, \
+             patch.object(jbp, "transition_issue",   return_value="done") as mock_transition:
+            jbp.poll_jira_bless("u@e.com", "tok", "mappy", False, "/root")
+        mock_comment.assert_not_called()
+        mock_transition.assert_not_called()
 
 ###############################################################################
 

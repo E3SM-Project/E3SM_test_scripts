@@ -324,7 +324,7 @@ def build_bless_cmd(suite, cases, action, root=None, bless_dry_run=False):
     cmd = [BLESS_SCRIPT, "-t", test_id, "-c", compiler, "-f"]
     if root:
         cmd += ["-r", root]
-    if cases not in ["*", ".*"]:
+    if len(cases) > 1 or (cases[0] not in ["*", ".*"]):
         cmd += cases
     if action == "hists":
         cmd.append("--hist-only")
@@ -530,6 +530,8 @@ def poll_jira_bless(email, token, machine, dry_run, root, bless_dry_run=False, t
 
         # Process actions
         indent += "  "
+        ticket_successes = 0
+        ticket_errors = 0
         for action in actions:
             action = action.strip()
             if action:
@@ -538,9 +540,23 @@ def poll_jira_bless(email, token, machine, dry_run, root, bless_dry_run=False, t
                 success = process_action(action, indent + "  ", dry_run=dry_run,
                                         bless_dry_run=bless_dry_run, root=root)
                 if success:
-                    processed += 1
+                    ticket_successes += 1
                 else:
-                    errors += 1
+                    ticket_errors += 1
+
+        processed += ticket_successes
+        errors    += ticket_errors
+
+        # Close the ticket if every action succeeded and this is a real bless run
+        if ticket_successes > 0 and ticket_errors == 0 and not dry_run and not bless_dry_run:
+            add_comment(headers, key,
+                        f"Bless completed successfully on {machine} "
+                        f"({ticket_successes} action(s) processed).")
+            used = transition_issue(headers, key)
+            if used:
+                print(f"{indent}Closed [{key}] via transition '{used}'.")
+            else:
+                print(f"{indent}WARNING: could not close [{key}] — no matching transition found.")
 
     print(f"\nDone. Successfully processed {processed} actions on '{machine}'. There were {errors} errors.")
     return processed >= 0 and errors == 0
