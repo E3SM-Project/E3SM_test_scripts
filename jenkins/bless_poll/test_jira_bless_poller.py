@@ -349,7 +349,7 @@ class TestInvokeBless(unittest.TestCase):
         modules = {
             "CIME":                    MagicMock(),
             "CIME.bless_test_results": MagicMock(bless_test_results=mock_fn),
-            "CIME.utils":              MagicMock(CIMEError=Exception),
+            "CIME.utils":              MagicMock(CIMEError=Exception, configure_logging=MagicMock()),
         }
         return patch.dict("sys.modules", modules), mock_fn
 

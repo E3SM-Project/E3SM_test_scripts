@@ -350,7 +350,8 @@ def _invoke_bless(suite, cases, action, root, indent, bless_dry_run=False):
     if _setup_cime_path():
         try:
             from CIME.bless_test_results import bless_test_results as cime_bless
-            from CIME.utils import CIMEError
+            from CIME.utils import CIMEError, configure_logging
+            configure_logging(verbose=False, debug=False, silent=False)
             print(f"{indent}CIME import succeeded, invoking as library!")
             print(f"{indent}############### BLESS_TEST_RESULT OUTPUT BEGINS HERE ##################")
             success = cime_bless(
