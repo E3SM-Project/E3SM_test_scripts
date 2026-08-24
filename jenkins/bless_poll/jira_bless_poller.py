@@ -12,7 +12,8 @@ to Resolved.
 Jira fields read per ticket:
   "Components"  - must match --machine
   "Description" - comma-separated -> one run per suite (-t). Format is: $job, ${NML|HIST|BOTH}, $regex1, $regex2, ...
-                - example: e3sm_developer_next_gnu, BOTH, *
+                - example: e3sm_developer_next_gnu, BOTH, .*
+                - example: e3sm_developer_next_gnu, BOTH, .*F2010.*
 """
 
 import argparse, base64, getpass, json, os, socket, ssl, subprocess, sys, urllib.error, urllib.parse, urllib.request
@@ -315,7 +316,7 @@ def build_bless_cmd(suite, cases, action, root=None, bless_dry_run=False):
     Return the bless_test_results argv list for one test suite.
     Parses suite into test_id (-t) and compiler (-c).
     -f (force) is always added once.
-    Case globs are positional arguments; omitted when cases is ["*"] (all cases).
+    Case regexes are positional arguments; omitted when cases is ["*"] (all cases).
     If root is provided it is passed as -r <root>.
     If bless_dry_run is True, --dry-run is appended.
     """
@@ -323,7 +324,7 @@ def build_bless_cmd(suite, cases, action, root=None, bless_dry_run=False):
     cmd = [BLESS_SCRIPT, "-t", test_id, "-c", compiler, "-f"]
     if root:
         cmd += ["-r", root]
-    if cases != ["*"]:
+    if cases not in ["*", ".*"]:
         cmd += cases
     if action == "hists":
         cmd.append("--hist-only")
@@ -422,7 +423,7 @@ def process_action(action, indent="", dry_run=False, bless_dry_run=False, root=N
 ###############################################################################
     """
     Parse and execute a single bless action string of the form:
-      "suite_name, task, case_glob [, case_glob ...]"
+      "suite_name, task, case_regex [, case_regex ...]"
     where task is NML, HIST, or BOTH.  Return True on success.
 
     dry_run=True  : print the equivalent shell command only; do not invoke bless.
@@ -550,7 +551,7 @@ def parse_command_line(args, description):
     parser = argparse.ArgumentParser(
         usage="""\n{0} --email <email> --token <token> [--machine <name>]
 OR
-{0} --action "suite, TASK, globs" [--machine <name>]
+{0} --action "suite, TASK, regexes" [--machine <name>]
 OR
 {0} --help
 
@@ -579,7 +580,7 @@ OR
         default=None,
         metavar="ACTION",
         help='Run a single action directly without polling Jira. '
-             'Format: "suite_name, TASK, glob1, glob2, ..." where TASK is NML, HIST, or BOTH. '
+             'Format: "suite_name, TASK, regex1, regex2, ..." where TASK is NML, HIST, or BOTH. '
              'Example: "e3sm_developer_next_gnu, BOTH, ERS*". '
              'When this option is used --email and --token are not required.',
     )
@@ -691,3 +692,7 @@ def _main_func(description):
             success = poll_jira_bless(**{k: v for k, v in vars(args).items()
                                          if k not in ("test_connection", "user", "action")})
     sys.exit(0 if success else 1)
+
+###############################################################################
+if __name__ == "__main__":
+    _main_func(__doc__)
