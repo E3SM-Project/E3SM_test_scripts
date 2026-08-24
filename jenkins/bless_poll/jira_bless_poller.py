@@ -90,13 +90,19 @@ def _resolve_root(machine):
             m = Machines(machine=machine_key)
             output_root = m.get_value("CIME_OUTPUT_ROOT")
             if output_root:
+                print(f"Found working CIME machine {machine_key}!")
                 return str(pathlib.Path(output_root) / "J")
         except Exception:
             pass
 
+    else:
+        print("WARNING: Could not import CIME, guessing root")
+
     # 2. Hard-coded fallback
     if machine_key in MACHINE_ROOTS:
-        return MACHINE_ROOTS[machine_key]
+        root = MACHINE_ROOTS[machine_key]
+        print(f"Guessing root {root}")
+        return root
 
     return None
 
