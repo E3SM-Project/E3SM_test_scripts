@@ -15,7 +15,7 @@ Jira fields read per ticket:
                 - example: e3sm_developer_next_gnu, BOTH, *
 """
 
-import argparse, base64, json, os, socket, ssl, subprocess, sys, urllib.error, urllib.parse, urllib.request
+import argparse, base64, getpass, json, os, socket, ssl, subprocess, sys, urllib.error, urllib.parse, urllib.request
 import pathlib
 
 JIRA_BASE_URL = "https://e3sm.atlassian.net"
@@ -620,6 +620,14 @@ OR
     )
 
     parser.add_argument(
+        "-u", "--user",
+        default=None,
+        help="Jenkins user name. When the root directory is derived automatically it will "
+             "contain the current user's name; this option replaces it with the given value. "
+             "Useful when running as a user different from the jenkins account.",
+    )
+
+    parser.add_argument(
         "--test-connection",
         default=False,
         action="store_true",
@@ -642,8 +650,11 @@ def _main_func(description):
                   f"CIME lookup failed and machine is not in the built-in table "
                   f"({list(MACHINE_ROOTS.keys())}). Use -r/--root to specify one.")
             sys.exit(1)
+        if args.user is not None:
+            current_user = getpass.getuser()
+            args.root = args.root.replace(current_user, args.user)
         success = poll_jira_bless(**{k: v for k, v in vars(args).items()
-                                     if k != "test_connection"})
+                                     if k not in ("test_connection", "user")})
     sys.exit(0 if success else 1)
 
 ###############################################################################

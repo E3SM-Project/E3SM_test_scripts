@@ -12,6 +12,7 @@ or:
     python3 test_jira_bless_poller.py
 """
 
+import getpass
 import os, sys, tempfile, unittest
 from unittest.mock import MagicMock, patch
 
@@ -34,6 +35,17 @@ def _make_issue(key, machine_name, description, summary="Test bless request"):
     }
 
 FAKE_FIELD_MAP = {"Description": "description", "Components": "components"}
+
+def _make_parsed_args(**overrides):
+    """Return an argparse-like namespace suitable for feeding to _main_func."""
+    import argparse
+    defaults = dict(
+        email="e@e.com", token="tok", machine="mappy",
+        root=None, dry_run=False, bless_dry_run=False,
+        tickets=None, test_connection=False, user=None,
+    )
+    defaults.update(overrides)
+    return argparse.Namespace(**defaults)
 
 ###############################################################################
 class TestResolveToken(unittest.TestCase):
@@ -246,7 +258,7 @@ class TestProcessAction(unittest.TestCase):
     def test_root_forwarded_to_build_cmd(self):
         with patch.object(jbp, "_invoke_bless", return_value=True) as mock_invoke:
             jbp.process_action("e3sm_developer_next_gnu, BOTH, ERS*", root="/custom/root")
-            _, _, _, root = mock_invoke.call_args[0]
+            _, _, _, root, _ = mock_invoke.call_args[0]
             self.assertEqual(root, "/custom/root")
 
     def test_too_few_parts_returns_false(self):
@@ -269,27 +281,27 @@ class TestProcessAction(unittest.TestCase):
         with patch.object(jbp, "_invoke_bless", return_value=True) as mock_invoke:
             result = jbp.process_action("e3sm_dev_suite_gnu, NML, ERS*")
             self.assertTrue(result)
-            _, _, action, _ = mock_invoke.call_args[0]
+            _, _, action, _, _ = mock_invoke.call_args[0]
             self.assertEqual(action, "nmls")
 
     def test_hist_task_passes_hists_action(self):
         with patch.object(jbp, "_invoke_bless", return_value=True) as mock_invoke:
             result = jbp.process_action("e3sm_dev_suite_gnu, HIST, SMS*")
             self.assertTrue(result)
-            _, _, action, _ = mock_invoke.call_args[0]
+            _, _, action, _, _ = mock_invoke.call_args[0]
             self.assertEqual(action, "hists")
 
     def test_both_task_passes_both_action(self):
         with patch.object(jbp, "_invoke_bless", return_value=True) as mock_invoke:
             result = jbp.process_action("e3sm_dev_suite_gnu, BOTH, *")
             self.assertTrue(result)
-            _, _, action, _ = mock_invoke.call_args[0]
+            _, _, action, _, _ = mock_invoke.call_args[0]
             self.assertEqual(action, "both")
 
     def test_multiple_case_globs(self):
         with patch.object(jbp, "_invoke_bless", return_value=True) as mock_invoke:
             jbp.process_action("e3sm_dev_suite_gnu, BOTH, ERS*, SMS*, PET*")
-            _, cases, _, _ = mock_invoke.call_args[0]
+            _, cases, _, _, _ = mock_invoke.call_args[0]
             self.assertEqual(cases, ["ERS*", "SMS*", "PET*"])
 
     def test_command_failure_returns_false(self):
@@ -300,13 +312,13 @@ class TestProcessAction(unittest.TestCase):
         with patch.object(jbp, "_invoke_bless", return_value=True) as mock_invoke:
             result = jbp.process_action("e3sm_dev_suite_gnu, hist, ERS*")
             self.assertTrue(result)
-            _, _, action, _ = mock_invoke.call_args[0]
+            _, _, action, _, _ = mock_invoke.call_args[0]
             self.assertEqual(action, "hists")
 
     def test_compiler_extracted_from_suite(self):
         with patch.object(jbp, "_invoke_bless", return_value=True) as mock_invoke:
             jbp.process_action("e3sm_developer_next_gnu, BOTH, *")
-            suite, _, _, _ = mock_invoke.call_args[0]
+            suite, _, _, _, _ = mock_invoke.call_args[0]
             self.assertEqual(suite, "e3sm_developer_next_gnu")
 
     def test_bless_dry_run_calls_invoke_with_flag(self):
@@ -335,22 +347,23 @@ class TestInvokeBless(unittest.TestCase):
         """Return a context manager that provides a mock CIME bless function."""
         mock_fn = MagicMock(return_value=return_value)
         modules = {
-            "CIME": MagicMock(),
+            "CIME":                    MagicMock(),
             "CIME.bless_test_results": MagicMock(bless_test_results=mock_fn),
+            "CIME.utils":              MagicMock(CIMEError=Exception),
         }
         return patch.dict("sys.modules", modules), mock_fn
 
     def test_cime_api_used_when_available(self):
         cm, mock_fn = self._mock_cime(return_value=True)
         with cm, patch.object(jbp, "_setup_cime_path", return_value=True):
-            result = jbp._invoke_bless(self._SUITE, ["ERS*"], "both", "/root/J")
+            result = jbp._invoke_bless(self._SUITE, ["ERS*"], "both", "/root/J", "")
         self.assertTrue(result)
         mock_fn.assert_called_once()
 
     def test_cime_api_receives_correct_params(self):
         cm, mock_fn = self._mock_cime(return_value=True)
         with cm, patch.object(jbp, "_setup_cime_path", return_value=True):
-            jbp._invoke_bless(self._SUITE, ["ERS*", "SMS*"], "nmls", "/root/J")
+            jbp._invoke_bless(self._SUITE, ["ERS*", "SMS*"], "nmls", "/root/J", "")
         kwargs = mock_fn.call_args[1]
         self.assertEqual(kwargs["test_root"], "/root/J")
         self.assertEqual(kwargs["compiler"], "gnu")
@@ -364,19 +377,19 @@ class TestInvokeBless(unittest.TestCase):
     def test_cime_bless_dry_run_forwarded(self):
         cm, mock_fn = self._mock_cime(return_value=True)
         with cm, patch.object(jbp, "_setup_cime_path", return_value=True):
-            jbp._invoke_bless(self._SUITE, ["ERS*"], "both", "/root/J", bless_dry_run=True)
+            jbp._invoke_bless(self._SUITE, ["ERS*"], "both", "/root/J", "", bless_dry_run=True)
         self.assertTrue(mock_fn.call_args[1]["dry_run"])
 
     def test_cime_wildcard_passes_none_bless_tests(self):
         cm, mock_fn = self._mock_cime(return_value=True)
         with cm, patch.object(jbp, "_setup_cime_path", return_value=True):
-            jbp._invoke_bless(self._SUITE, ["*"], "both", "/root/J")
+            jbp._invoke_bless(self._SUITE, ["*"], "both", "/root/J", "")
         self.assertIsNone(mock_fn.call_args[1]["bless_tests"])
 
     def test_cime_hist_only_param(self):
         cm, mock_fn = self._mock_cime(return_value=True)
         with cm, patch.object(jbp, "_setup_cime_path", return_value=True):
-            jbp._invoke_bless(self._SUITE, ["*"], "hists", "/root/J")
+            jbp._invoke_bless(self._SUITE, ["*"], "hists", "/root/J", "")
         kwargs = mock_fn.call_args[1]
         self.assertTrue(kwargs["hist_only"])
         self.assertFalse(kwargs["namelists_only"])
@@ -385,7 +398,7 @@ class TestInvokeBless(unittest.TestCase):
         mock_result = MagicMock(returncode=0, stdout="", stderr="")
         with patch.object(jbp, "_setup_cime_path", return_value=False), \
              patch("subprocess.run", return_value=mock_result) as mock_run:
-            result = jbp._invoke_bless(self._SUITE, ["ERS*"], "both", "/root/J")
+            result = jbp._invoke_bless(self._SUITE, ["ERS*"], "both", "/root/J", "")
         self.assertTrue(result)
         mock_run.assert_called_once()
         cmd = mock_run.call_args[0][0]
@@ -399,7 +412,7 @@ class TestInvokeBless(unittest.TestCase):
         mock_result = MagicMock(returncode=0, stdout="", stderr="")
         with patch.object(jbp, "_setup_cime_path", return_value=False), \
              patch("subprocess.run", return_value=mock_result) as mock_run:
-            jbp._invoke_bless(self._SUITE, ["ERS*"], "nmls", "/root/J")
+            jbp._invoke_bless(self._SUITE, ["ERS*"], "nmls", "/root/J", "")
         cmd = mock_run.call_args[0][0]
         self.assertIn("-n", cmd)
         self.assertNotIn("--hist-only", cmd)
@@ -408,7 +421,7 @@ class TestInvokeBless(unittest.TestCase):
         mock_result = MagicMock(returncode=0, stdout="", stderr="")
         with patch.object(jbp, "_setup_cime_path", return_value=False), \
              patch("subprocess.run", return_value=mock_result) as mock_run:
-            jbp._invoke_bless(self._SUITE, ["ERS*"], "hists", "/root/J")
+            jbp._invoke_bless(self._SUITE, ["ERS*"], "hists", "/root/J", "")
         cmd = mock_run.call_args[0][0]
         self.assertIn("--hist-only", cmd)
         self.assertNotIn("-n", cmd)
@@ -417,7 +430,7 @@ class TestInvokeBless(unittest.TestCase):
         mock_result = MagicMock(returncode=0, stdout="", stderr="")
         with patch.object(jbp, "_setup_cime_path", return_value=False), \
              patch("subprocess.run", return_value=mock_result) as mock_run:
-            jbp._invoke_bless(self._SUITE, ["*"], "both", "/root/J")
+            jbp._invoke_bless(self._SUITE, ["*"], "both", "/root/J", "")
         cmd = mock_run.call_args[0][0]
         self.assertNotIn("*", cmd)
         self.assertIn("-f", cmd)
@@ -426,14 +439,14 @@ class TestInvokeBless(unittest.TestCase):
         mock_result = MagicMock(returncode=1, stdout="", stderr="error")
         with patch.object(jbp, "_setup_cime_path", return_value=False), \
              patch("subprocess.run", return_value=mock_result):
-            result = jbp._invoke_bless(self._SUITE, ["ERS*"], "both", "/root/J")
+            result = jbp._invoke_bless(self._SUITE, ["ERS*"], "both", "/root/J", "")
         self.assertFalse(result)
 
     def test_subprocess_bless_dry_run_adds_flag(self):
         mock_result = MagicMock(returncode=0, stdout="", stderr="")
         with patch.object(jbp, "_setup_cime_path", return_value=False), \
              patch("subprocess.run", return_value=mock_result) as mock_run:
-            jbp._invoke_bless(self._SUITE, ["ERS*"], "both", "/root/J", bless_dry_run=True)
+            jbp._invoke_bless(self._SUITE, ["ERS*"], "both", "/root/J", "", bless_dry_run=True)
         cmd = mock_run.call_args[0][0]
         self.assertIn("--dry-run", cmd)
 
@@ -441,9 +454,75 @@ class TestInvokeBless(unittest.TestCase):
         mock_result = MagicMock(returncode=0, stdout="", stderr="")
         with patch.object(jbp, "_setup_cime_path", return_value=False), \
              patch("subprocess.run", return_value=mock_result) as mock_run:
-            jbp._invoke_bless(self._SUITE, ["ERS*"], "both", "/root/J", bless_dry_run=False)
+            jbp._invoke_bless(self._SUITE, ["ERS*"], "both", "/root/J", "", bless_dry_run=False)
         cmd = mock_run.call_args[0][0]
         self.assertNotIn("--dry-run", cmd)
+
+###############################################################################
+class TestUserSubstitution(unittest.TestCase):
+###############################################################################
+
+    def _run_main(self, extra_args, root_from_resolve, user=None):
+        """
+        Exercise _main_func's user-substitution logic without real Jira or bless.
+        Returns the root that would be passed to poll_jira_bless.
+        """
+        base_args = ["prog", "-e", "e@e.com", "-t", "tok", "-m", "mappy"]
+        if user:
+            base_args += ["-u", user]
+        base_args += extra_args
+
+        captured = {}
+        def fake_poll(**kwargs):
+            captured.update(kwargs)
+            return True
+
+        with patch.object(jbp, "parse_command_line",
+                          return_value=_make_namespace(base_args, root_from_resolve)), \
+             patch.object(jbp, "_resolve_root", return_value=root_from_resolve), \
+             patch.object(jbp, "poll_jira_bless", side_effect=fake_poll), \
+             patch("sys.exit"):
+            jbp._main_func("test")
+
+        return captured.get("root")
+
+    def test_user_replaces_current_user_in_root(self):
+        current = getpass.getuser()
+        root = f"/home/{current}/scratch/J"
+        with patch("getpass.getuser", return_value=current), \
+             patch.object(jbp, "_resolve_root", return_value=root), \
+             patch.object(jbp, "poll_jira_bless", return_value=True) as mock_poll, \
+             patch("sys.exit"):
+            args = _make_parsed_args(root=root, user="e3sm-jenkins")
+            with patch.object(jbp, "parse_command_line", return_value=args):
+                jbp._main_func("test")
+        actual_root = mock_poll.call_args[1]["root"]
+        self.assertEqual(actual_root, f"/home/e3sm-jenkins/scratch/J")
+
+    def test_no_user_leaves_root_unchanged(self):
+        current = getpass.getuser()
+        root = f"/home/{current}/scratch/J"
+        with patch.object(jbp, "_resolve_root", return_value=root), \
+             patch.object(jbp, "poll_jira_bless", return_value=True) as mock_poll, \
+             patch("sys.exit"):
+            args = _make_parsed_args(root=root, user=None)
+            with patch.object(jbp, "parse_command_line", return_value=args):
+                jbp._main_func("test")
+        actual_root = mock_poll.call_args[1]["root"]
+        self.assertEqual(actual_root, root)
+
+    def test_user_replaces_all_occurrences(self):
+        current = getpass.getuser()
+        root = f"/home/{current}/data/{current}/J"
+        with patch("getpass.getuser", return_value=current), \
+             patch.object(jbp, "_resolve_root", return_value=root), \
+             patch.object(jbp, "poll_jira_bless", return_value=True) as mock_poll, \
+             patch("sys.exit"):
+            args = _make_parsed_args(root=root, user="jenkins")
+            with patch.object(jbp, "parse_command_line", return_value=args):
+                jbp._main_func("test")
+        actual_root = mock_poll.call_args[1]["root"]
+        self.assertEqual(actual_root, "/home/jenkins/data/jenkins/J")
 
 ###############################################################################
 class TestResolveRoot(unittest.TestCase):
@@ -491,7 +570,7 @@ class TestMachineRoots(unittest.TestCase):
              patch.object(jbp, "search_issues", return_value=issues), \
              patch.object(jbp, "_invoke_bless", return_value=True) as mock_invoke:
             jbp.poll_jira_bless("u@e.com", "tok", "mappy", False, "/a/b")
-            _, _, _, root = mock_invoke.call_args[0]
+            _, _, _, root, _ = mock_invoke.call_args[0]
             self.assertEqual(root, "/a/b")
 
 ###############################################################################
@@ -521,7 +600,7 @@ class TestPollJiraBless(unittest.TestCase):
         success, mock_invoke = self._run_poll(issues, machine="mappy")
         self.assertTrue(success)
         mock_invoke.assert_called_once()
-        suite, cases, action, root = mock_invoke.call_args[0]
+        suite, cases, action, root, _ = mock_invoke.call_args[0]
         self.assertEqual(suite, "e3sm_developer_next_gnu")
         self.assertIn("ERS*", cases)
 
