@@ -91,7 +91,7 @@ def _resolve_root(machine):
             m = Machines(machine=machine_key)
             output_root = m.get_value("CIME_OUTPUT_ROOT")
             if output_root:
-                print(f"Found working CIME machine {machine_key}!")
+                print(f"Found working CIME machine {machine_key}, using root {output_root}/J")
                 return str(pathlib.Path(output_root) / "J")
         except Exception:
             pass
