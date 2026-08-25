@@ -696,7 +696,8 @@ class TestPollJiraBless(unittest.TestCase):
         issues = [_make_issue("SES-1", "mappy", "e3sm_suite_a_gnu, BOTH, *")]
         _, _, mock_comment, mock_transition = self._run_poll(issues)
         mock_comment.assert_called_once_with({}, "SES-1", unittest.mock.ANY)
-        mock_transition.assert_called_once_with({}, "SES-1")
+        mock_transition.assert_called_once_with(
+            {}, "SES-1", jbp.RESOLVE_TRANSITION_NAMES, label="resolve")
 
     def test_comment_contains_captured_output(self):
         issues = [_make_issue("SES-1", "mappy", "e3sm_suite_a_gnu, BOTH, *")]
@@ -705,27 +706,33 @@ class TestPollJiraBless(unittest.TestCase):
         # The captured output should include the action line printed during processing
         self.assertIn("Processing action", comment_text)
 
-    def test_failed_bless_does_not_close_ticket(self):
+    def test_failed_bless_marks_ticket_inactive(self):
         issues = [_make_issue("SES-1", "mappy", "e3sm_suite_a_gnu, BOTH, *")]
         _, _, mock_comment, mock_transition = self._run_poll(issues, bless_succeeds=False)
-        mock_comment.assert_not_called()
-        mock_transition.assert_not_called()
+        mock_comment.assert_called_once_with({}, "SES-1", unittest.mock.ANY)
+        mock_transition.assert_called_once_with(
+            {}, "SES-1", jbp.INACTIVE_TRANSITION_NAMES, label="inactive")
 
-    def test_dry_run_does_not_close_ticket(self):
+    def test_failed_bless_comment_contains_output(self):
+        issues = [_make_issue("SES-1", "mappy", "e3sm_suite_a_gnu, BOTH, *")]
+        _, _, mock_comment, _ = self._run_poll(issues, bless_succeeds=False)
+        comment_text = mock_comment.call_args[0][2]
+        self.assertIn("Processing action", comment_text)
+
+    def test_dry_run_does_not_transition_ticket(self):
         issues = [_make_issue("SES-1", "mappy", "e3sm_suite_a_gnu, BOTH, *")]
         _, _, mock_comment, mock_transition = self._run_poll(issues, dry_run=True)
         mock_comment.assert_not_called()
         mock_transition.assert_not_called()
 
-    def test_bless_dry_run_does_not_close_ticket(self):
+    def test_bless_dry_run_does_not_transition_ticket(self):
         issues = [_make_issue("SES-1", "mappy", "e3sm_suite_a_gnu, BOTH, *")]
-        # bless_dry_run goes through _invoke_bless but should not close the ticket
         _, _, mock_comment, mock_transition = self._run_poll(issues, bless_dry_run=True)
         mock_comment.assert_not_called()
         mock_transition.assert_not_called()
 
-    def test_partial_failure_does_not_close_ticket(self):
-        """If any action fails, the ticket should not be closed."""
+    def test_partial_failure_marks_ticket_inactive(self):
+        """If any action fails, the ticket should be marked inactive (not closed)."""
         desc = "e3sm_suite_a_gnu, BOTH, ERS*\ne3sm_suite_b_gnu, BOTH, SMS*"
         issues = [_make_issue("SES-1", "mappy", desc)]
         # First action succeeds, second fails
@@ -735,10 +742,11 @@ class TestPollJiraBless(unittest.TestCase):
              patch.object(jbp, "search_issues",      return_value=issues), \
              patch.object(jbp, "_invoke_bless",      side_effect=side_effects), \
              patch.object(jbp, "add_comment",        return_value=None) as mock_comment, \
-             patch.object(jbp, "transition_issue",   return_value="done") as mock_transition:
+             patch.object(jbp, "transition_issue",   return_value="on hold") as mock_transition:
             jbp.poll_jira_bless("u@e.com", "tok", "mappy", False, "/root")
-        mock_comment.assert_not_called()
-        mock_transition.assert_not_called()
+        mock_comment.assert_called_once()
+        mock_transition.assert_called_once_with(
+            {}, "SES-1", jbp.INACTIVE_TRANSITION_NAMES, label="inactive")
 
 ###############################################################################
 

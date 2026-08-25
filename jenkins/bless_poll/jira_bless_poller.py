@@ -33,7 +33,8 @@ JQL = (
     "ORDER BY created ASC"
 )
 
-RESOLVE_TRANSITION_NAMES = ["resolve this issue", "resolved", "resolve request", "resolve", "done", "close"]
+RESOLVE_TRANSITION_NAMES  = ["resolve this issue", "resolved", "resolve request", "resolve", "done", "close"]
+INACTIVE_TRANSITION_NAMES = ["waiting for customer", "pending", "on hold", "hold", "inactive", "waiting"]
 
 # Fallback root directories (last resort), keyed by lowercase machine name.
 # Prefer CIME-derived CIME_OUTPUT_ROOT/J when possible.
@@ -236,19 +237,20 @@ def add_comment(headers, issue_key, text):
     })
 
 ###############################################################################
-def transition_issue(headers, issue_key):
+def transition_issue(headers, issue_key, transition_names, label="transition"):
 ###############################################################################
     """
-    Try each name in RESOLVE_TRANSITION_NAMES; return matched name or None.
+    Try each name in transition_names against the ticket's available transitions.
+    Returns the matched name on success, or None if no match was found.
     """
     data       = _jira_get(f"/rest/api/3/issue/{issue_key}/transitions", headers)
     name_to_id = {t["name"].lower(): t["id"] for t in data.get("transitions", [])}
-    for name in RESOLVE_TRANSITION_NAMES:
+    for name in transition_names:
         if name in name_to_id:
             _jira_post(f"/rest/api/3/issue/{issue_key}/transitions", headers,
                        {"transition": {"id": name_to_id[name]}})
             return name
-    print(f"  [{issue_key}] WARNING: no resolve transition found. "
+    print(f"  [{issue_key}] WARNING: no {label} transition found. "
           f"Available: {list(name_to_id.keys())}")
     return None
 
@@ -570,16 +572,26 @@ def poll_jira_bless(email, token, machine, dry_run, root, bless_dry_run=False, t
         errors    += ticket_errors
 
         # Close the ticket if every action succeeded and this is a real bless run
-        if ticket_successes > 0 and ticket_errors == 0 and not dry_run and not bless_dry_run:
+        if not dry_run and not bless_dry_run:
             comment = ticket_buf.getvalue().strip()
-            add_comment(headers, key, comment if comment else
-                        f"Bless completed successfully on {machine} "
-                        f"({ticket_successes} action(s) processed).")
-            used = transition_issue(headers, key)
-            if used:
-                print(f"{indent}Closed [{key}] via transition '{used}'.")
-            else:
-                print(f"{indent}WARNING: could not close [{key}] — no matching transition found.")
+            if ticket_successes > 0 and ticket_errors == 0:
+                add_comment(headers, key, comment if comment else
+                            f"Bless completed successfully on {machine} "
+                            f"({ticket_successes} action(s) processed).")
+                used = transition_issue(headers, key, RESOLVE_TRANSITION_NAMES, label="resolve")
+                if used:
+                    print(f"{indent}Closed [{key}] via transition '{used}'.")
+                else:
+                    print(f"{indent}WARNING: could not close [{key}] — no matching transition found.")
+            elif ticket_errors > 0:
+                add_comment(headers, key, comment if comment else
+                            f"Bless FAILED on {machine} "
+                            f"({ticket_errors} action(s) failed). Marking inactive.")
+                used = transition_issue(headers, key, INACTIVE_TRANSITION_NAMES, label="inactive")
+                if used:
+                    print(f"{indent}Marked [{key}] inactive via transition '{used}'.")
+                else:
+                    print(f"{indent}WARNING: could not mark [{key}] inactive — no matching transition found.")
 
     print(f"\nDone. Successfully processed {processed} actions on '{machine}'. There were {errors} errors.")
     return processed >= 0 and errors == 0
