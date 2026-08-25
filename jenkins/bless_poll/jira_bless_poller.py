@@ -373,8 +373,24 @@ def _invoke_bless(suite, cases, action, root, indent, bless_dry_run=False):
     if _setup_cime_path():
         try:
             from CIME.bless_test_results import bless_test_results as cime_bless
-            from CIME.utils import CIMEError, configure_logging
-            configure_logging(verbose=False, debug=False, silent=False)
+            from CIME.utils import CIMEError
+            import logging as _logging
+            # Set up logging so CIME output is visible. Use a dynamic stream handler
+            # that always writes to the current sys.stderr/sys.stdout so that our
+            # TeeStream redirect is honoured even after the handlers are created.
+            _root_logger = _logging.getLogger()
+            if not _root_logger.handlers:
+                class _DynamicStderrHandler(_logging.StreamHandler):
+                    @property
+                    def stream(self):
+                        return sys.stderr
+                    @stream.setter
+                    def stream(self, value):
+                        pass  # ignore; always use sys.stderr dynamically
+                _h = _DynamicStderrHandler()
+                _h.setLevel(_logging.DEBUG)
+                _root_logger.addHandler(_h)
+                _root_logger.setLevel(_logging.DEBUG)
             print(f"{indent}CIME import succeeded, invoking as library!")
             print(f"{indent}=============== BLESS_TEST_RESULT OUTPUT BEGINS HERE ==================")
             success = cime_bless(
@@ -555,7 +571,8 @@ def poll_jira_bless(email, token, machine, dry_run, root, bless_dry_run=False, t
         ticket_successes = 0
         ticket_errors = 0
         ticket_buf = io.StringIO()
-        with contextlib.redirect_stdout(_TeeStream(sys.stdout, ticket_buf)):
+        with contextlib.redirect_stdout(_TeeStream(sys.stdout, ticket_buf)), \
+             contextlib.redirect_stderr(_TeeStream(sys.stderr, ticket_buf)):
             for action in actions:
                 action = action.strip()
                 if action:
