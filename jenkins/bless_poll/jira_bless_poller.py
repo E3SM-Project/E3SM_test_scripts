@@ -10,6 +10,8 @@ finish the ticket is commented with the command output and transitioned
 to Resolved if everything was successful. If there were problems, the ticket
 is transitioned to 'Waiting for Customer' and it will not be processed again
 until the ticket is manually transitioned back to Open/Waiting for support.
+All output/stderr from this tool and bless_test_results will be uploaded to
+the ticket.
 
 Jira fields read per ticket:
   "Components"  - must match --machine
