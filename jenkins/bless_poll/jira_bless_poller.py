@@ -29,12 +29,12 @@ FIELD_MACHINE = "Components"
 
 JQL = (
     f"project = {PROJECT_KEY} "
-    "AND status not in (Resolved, Done, Closed) "
+    "AND status not in (Resolved, Done, Closed, \"Waiting for Customer\") "
     "ORDER BY created ASC"
 )
 
 RESOLVE_TRANSITION_NAMES  = ["resolve this issue", "resolved", "resolve request", "resolve", "done", "close"]
-INACTIVE_TRANSITION_NAMES = ["waiting for customer", "pending", "on hold", "hold", "inactive", "waiting"]
+INACTIVE_TRANSITION_NAMES = ["respond to customer", "waiting for customer", "pending", "on hold", "hold", "inactive", "waiting"]
 
 # Fallback root directories (last resort), keyed by lowercase machine name.
 # Prefer CIME-derived CIME_OUTPUT_ROOT/J when possible.
