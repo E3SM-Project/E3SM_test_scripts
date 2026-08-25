@@ -16,6 +16,9 @@ Jira fields read per ticket:
   "Description" - comma-separated -> one run per suite (-t). Format is: $job, ${NML|HIST|BOTH}, $regex1, $regex2, ...
                 - example: e3sm_developer_next_gnu, BOTH, .*
                 - example: e3sm_developer_next_gnu, BOTH, .*F2010.*
+
+This tool does offer an offline mode where the "action" is provided directly.
+This can be useful if you are using complex regexes and you want to test them.
 """
 
 import argparse, base64, getpass, io, json, os, socket, ssl, subprocess, sys, urllib.error, urllib.parse, urllib.request
