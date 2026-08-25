@@ -7,7 +7,9 @@ bless_test_results for any ticket targeting this machine.
 Each ticket's test suites (comma-separated field) each get their own
 bless_test_results -t <suite> -f <case> ... invocation.  When all suites
 finish the ticket is commented with the command output and transitioned
-to Resolved.
+to Resolved if everything was successful. If there were problems, the ticket
+is transitioned to 'Waiting for Customer' and it will not be processed again
+until the ticket is manually transitioned back to Open/Waiting for support.
 
 Jira fields read per ticket:
   "Components"  - must match --machine
@@ -617,11 +619,24 @@ OR
     \033[1;32m# Specify a machine name explicitly\033[0m
     > {0} --email you@example.com --token <api-token> --machine mappy
 
+    \033[1;32m# Run as a different user than the user that runs the nightlies\033[0m
+    > {0} --email you@example.com --token <api-token> --machine mappy -u e3sm-jenkins
+
+    \033[1;32m# Specify a machine name and ticket explicitly\033[0m
+    > {0} --email you@example.com --token <api-token> --machine mappy --tickets SES-4290
+
     \033[1;32m# Dry-run: print commands without executing or modifying tickets\033[0m
     > {0} --email you@example.com --token <api-token> --dry-run
 
+    \033[1;32m# Less Dry-run: executed btr commands but only in dry-mode. Does not modify tickets\033[0m
+    > {0} --email you@example.com --token <api-token> --bless-dry-run
+
     \033[1;32m# Test credentials and confirm all required Jira fields exist\033[0m
     > {0} --email you@example.com --token <api-token> --test-connection
+
+    \033[1;32m# Test your regex offline. Must run on same machine as nightly\033[0m
+    > {0} -a 'e3sm_developer_next_gnu, BOTH, .*F2010.*'
+
 """.format(pathlib.Path(args[0]).name),
         description=description,
         formatter_class=argparse.RawDescriptionHelpFormatter,
