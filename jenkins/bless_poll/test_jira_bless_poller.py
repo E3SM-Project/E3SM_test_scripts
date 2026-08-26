@@ -43,6 +43,7 @@ def _make_parsed_args(**overrides):
         email="e@e.com", token="tok", machine="mappy",
         root=None, dry_run=False, bless_dry_run=False,
         tickets=None, test_connection=False, user=None, action=None,
+        no_transition=False,
     )
     defaults.update(overrides)
     return argparse.Namespace(**defaults)
@@ -580,7 +581,7 @@ class TestPollJiraBless(unittest.TestCase):
 ###############################################################################
 
     def _run_poll(self, issues, machine="mappy", dry_run=False, bless_dry_run=False,
-                  root="/fake/root", tickets=None, bless_succeeds=True):
+                  root="/fake/root", tickets=None, bless_succeeds=True, no_transition=False):
         """
         Run poll_jira_bless with all Jira I/O and bless invocation mocked out.
         Returns (success, mock_invoke, mock_comment, mock_transition).
@@ -592,7 +593,8 @@ class TestPollJiraBless(unittest.TestCase):
              patch.object(jbp, "add_comment",         return_value=None) as mock_comment, \
              patch.object(jbp, "transition_issue",    return_value="done") as mock_transition:
             success = jbp.poll_jira_bless("user@example.com", "token", machine, dry_run, root,
-                                          bless_dry_run=bless_dry_run, tickets=tickets)
+                                          bless_dry_run=bless_dry_run, tickets=tickets,
+                                          no_transition=no_transition)
             return success, mock_invoke, mock_comment, mock_transition
 
     def test_no_tickets_returns_success(self):
@@ -747,6 +749,19 @@ class TestPollJiraBless(unittest.TestCase):
         mock_comment.assert_called_once()
         mock_transition.assert_called_once_with(
             {}, "SES-1", jbp.INACTIVE_TRANSITION_NAMES, label="inactive")
+
+    def test_no_transition_skips_resolve(self):
+        issues = [_make_issue("SES-1", "mappy", "e3sm_suite_a_gnu, BOTH, *")]
+        _, _, mock_comment, mock_transition = self._run_poll(issues, no_transition=True)
+        mock_comment.assert_called_once()   # comment still posted
+        mock_transition.assert_not_called()
+
+    def test_no_transition_skips_inactive(self):
+        issues = [_make_issue("SES-1", "mappy", "e3sm_suite_a_gnu, BOTH, *")]
+        _, _, mock_comment, mock_transition = self._run_poll(
+            issues, bless_succeeds=False, no_transition=True)
+        mock_comment.assert_called_once()   # comment still posted
+        mock_transition.assert_not_called()
 
 ###############################################################################
 

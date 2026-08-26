@@ -498,7 +498,7 @@ def process_action(action, indent="", dry_run=False, bless_dry_run=False, root=N
     return success
 
 ###############################################################################
-def poll_jira_bless(email, token, machine, dry_run, root, bless_dry_run=False, tickets=None):
+def poll_jira_bless(email, token, machine, dry_run, root, bless_dry_run=False, tickets=None, no_transition=False):
 ###############################################################################
 
     headers = _auth_headers(email, token)
@@ -586,26 +586,33 @@ def poll_jira_bless(email, token, machine, dry_run, root, bless_dry_run=False, t
                 add_comment(headers, key, comment if comment else
                             f"Bless completed successfully on {machine} "
                             f"({ticket_successes} action(s) processed).")
-                used = transition_issue(headers, key, RESOLVE_TRANSITION_NAMES, label="resolve")
-                if used:
-                    print(f"{indent}Closed [{key}] via transition '{used}'.")
+                if no_transition:
+                    print(f"{indent}[{key}] --no-transition: skipping resolve transition.")
                 else:
-                    # This would be quite bad as it would lead to continuous attempts to bless.
-                    # Perhaps some local workspace FILE is needed to disable the polling
-                    print(f"{indent}WARNING: could not close [{key}] — no matching transition found.")
-                    ticket_errors += 1
+                    used = transition_issue(headers, key, RESOLVE_TRANSITION_NAMES, label="resolve")
+                    if used:
+                        print(f"{indent}Closed [{key}] via transition '{used}'.")
+                    else:
+                        # This would be quite bad as it would lead to continuous attempts to bless.
+                        # Perhaps some local workspace FILE is needed to disable the polling
+                        print(f"{indent}WARNING: could not close [{key}] — no matching transition found.")
+                        ticket_errors += 1
+
             elif ticket_errors > 0:
                 add_comment(headers, key, comment if comment else
                             f"Bless FAILED on {machine} "
                             f"({ticket_errors} action(s) failed). Marking inactive.")
-                used = transition_issue(headers, key, INACTIVE_TRANSITION_NAMES, label="inactive")
-                if used:
-                    print(f"{indent}Marked [{key}] inactive via transition '{used}'.")
+                if no_transition:
+                    print(f"{indent}[{key}] --no-transition: skipping inactive transition.")
                 else:
-                    # This would be quite bad as it would lead to continuous attempts to bless.
-                    # Perhaps some local workspace FILE is needed to disable the polling
-                    print(f"{indent}WARNING: could not mark [{key}] inactive — no matching transition found.")
-                    ticket_errors += 1
+                    used = transition_issue(headers, key, INACTIVE_TRANSITION_NAMES, label="inactive")
+                    if used:
+                        print(f"{indent}Marked [{key}] inactive via transition '{used}'.")
+                    else:
+                        # This would be quite bad as it would lead to continuous attempts to bless.
+                        # Perhaps some local workspace FILE is needed to disable the polling
+                        print(f"{indent}WARNING: could not mark [{key}] inactive — no matching transition found.")
+                        ticket_errors += 1
 
     print(f"\nDone. Successfully processed {processed} actions on '{machine}'. There were {errors} errors.")
     return processed >= 0 and errors == 0
@@ -723,6 +730,14 @@ OR
         help="Jenkins user name. When the root directory is derived automatically it will "
              "contain the current user's name; this option replaces it with the given value. "
              "Useful when running as a user different from the jenkins account.",
+    )
+
+    parser.add_argument(
+        "--no-transition",
+        default=False,
+        action="store_true",
+        help="Skip Jira ticket transitions after bless (neither resolve nor mark inactive). "
+             "A comment is still posted. Useful for testing without changing ticket state.",
     )
 
     parser.add_argument(
