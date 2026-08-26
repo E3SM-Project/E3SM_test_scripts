@@ -354,7 +354,7 @@ def build_bless_cmd(suite, cases, action, root=None, bless_dry_run=False):
     if root:
         cmd += ["-r", root]
     if len(cases) > 1 or (cases[0] not in ["*", ".*"]):
-        cmd += cases
+        cmd += [f"'{case}'" for case in cases]
     if action == "hists":
         cmd.append("--hist-only")
     elif action == "nmls":
