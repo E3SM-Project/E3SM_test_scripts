@@ -29,7 +29,7 @@ import pathlib
 
 JIRA_BASE_URL = "https://e3sm.atlassian.net"
 PROJECT_KEY   = "SES"
-BLESS_SCRIPT  = "./Tools/bless_test_results"
+BLESS_SCRIPT  = "./E3SM/cime/CIME/Tools/bless_test_results"
 
 FIELD_CASES   = "Description"
 FIELD_MACHINE = "Components"
@@ -590,7 +590,10 @@ def poll_jira_bless(email, token, machine, dry_run, root, bless_dry_run=False, t
                 if used:
                     print(f"{indent}Closed [{key}] via transition '{used}'.")
                 else:
+                    # This would be quite bad as it would lead to continuous attempts to bless.
+                    # Perhaps some local workspace FILE is needed to disable the polling
                     print(f"{indent}WARNING: could not close [{key}] — no matching transition found.")
+                    ticket_errors += 1
             elif ticket_errors > 0:
                 add_comment(headers, key, comment if comment else
                             f"Bless FAILED on {machine} "
@@ -599,7 +602,10 @@ def poll_jira_bless(email, token, machine, dry_run, root, bless_dry_run=False, t
                 if used:
                     print(f"{indent}Marked [{key}] inactive via transition '{used}'.")
                 else:
+                    # This would be quite bad as it would lead to continuous attempts to bless.
+                    # Perhaps some local workspace FILE is needed to disable the polling
                     print(f"{indent}WARNING: could not mark [{key}] inactive — no matching transition found.")
+                    ticket_errors += 1
 
     print(f"\nDone. Successfully processed {processed} actions on '{machine}'. There were {errors} errors.")
     return processed >= 0 and errors == 0
