@@ -32,7 +32,7 @@ main() {
 
     #load modules
     source /etc/profile.d/modules.sh
-    module load python/3.11.5
+    module load python/3.11.13
 
     ulimit -d unlimited
     ulimit -s unlimited
