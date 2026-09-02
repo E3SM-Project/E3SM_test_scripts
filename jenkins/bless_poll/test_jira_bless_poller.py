@@ -43,7 +43,7 @@ def _make_parsed_args(**overrides):
         email="e@e.com", token="tok", machine="mappy",
         root=None, dry_run=False, bless_dry_run=False,
         tickets=None, test_connection=False, user=None, action=None,
-        no_transition=False,
+        no_transition=False, close_ticket=None, comment=None,
     )
     defaults.update(overrides)
     return argparse.Namespace(**defaults)
@@ -826,6 +826,53 @@ class TestDirectActionMode(unittest.TestCase):
              patch("sys.exit") as mock_exit:
             jbp._main_func("test")
         # Should exit 0, not exit 1 (no "missing email/token" error)
+        mock_exit.assert_called_with(0)
+
+###############################################################################
+
+###############################################################################
+class TestCloseTicket(unittest.TestCase):
+###############################################################################
+    """Tests for the --close-ticket mode."""
+
+    def test_close_ticket_transitions_and_comments(self):
+        with patch.object(jbp, "add_comment", return_value=None) as mock_comment, \
+             patch.object(jbp, "transition_issue", return_value="resolved") as mock_trans:
+            success = jbp.close_ticket("e@e.com", "tok", "SES-42", comment_text="Manual close")
+        self.assertTrue(success)
+        mock_comment.assert_called_once()
+        mock_trans.assert_called_once()
+
+    def test_close_ticket_uppercase_id(self):
+        with patch.object(jbp, "add_comment", return_value=None), \
+             patch.object(jbp, "transition_issue", return_value="resolved") as mock_trans:
+            jbp.close_ticket("e@e.com", "tok", "ses-99", comment_text="test")
+        # Verify the ticket ID was uppercased
+        call_args = mock_trans.call_args[0]
+        self.assertEqual(call_args[1], "SES-99")
+
+    def test_close_ticket_without_comment(self):
+        with patch.object(jbp, "add_comment", return_value=None) as mock_comment, \
+             patch.object(jbp, "transition_issue", return_value="resolved"):
+            jbp.close_ticket("e@e.com", "tok", "SES-42")
+        mock_comment.assert_not_called()
+
+    def test_close_ticket_no_transition_skips_transition(self):
+        with patch.object(jbp, "add_comment", return_value=None), \
+             patch.object(jbp, "transition_issue") as mock_trans:
+            success = jbp.close_ticket("e@e.com", "tok", "SES-42",
+                                      comment_text="test", no_transition=True)
+        self.assertTrue(success)
+        mock_trans.assert_not_called()
+
+    def test_close_ticket_main_func_mode(self):
+        """Test --close-ticket through _main_func."""
+        args = _make_parsed_args(close_ticket="SES-100", comment="Closed manually", email="e@e.com", token="tok")
+        with patch.object(jbp, "parse_command_line", return_value=args), \
+             patch.object(jbp, "add_comment", return_value=None), \
+             patch.object(jbp, "transition_issue", return_value="resolved"), \
+             patch("sys.exit") as mock_exit:
+            jbp._main_func("test")
         mock_exit.assert_called_with(0)
 
 ###############################################################################

@@ -422,6 +422,36 @@ def _invoke_bless(suite, cases, action, root, indent, bless_dry_run=False):
     return result.returncode == 0
 
 ###############################################################################
+def close_ticket(email, token, ticket_id, comment_text=None, no_transition=False):
+###############################################################################
+    """
+    Close a single ticket by transitioning it to resolved.
+    Optionally post a comment first.
+    Returns True on success.
+    """
+    token = _resolve_token(token)
+    headers = _auth_headers(email, token)
+    ticket_id = ticket_id.upper()
+
+    print(f"Closing ticket {ticket_id}...")
+
+    if comment_text:
+        print(f"  Posting comment...")
+        add_comment(headers, ticket_id, comment_text)
+
+    if no_transition:
+        print(f"  --no-transition: skipping resolve transition.")
+        return True
+
+    used = transition_issue(headers, ticket_id, RESOLVE_TRANSITION_NAMES, label="resolve")
+    if used:
+        print(f"  Closed via transition '{used}'.")
+        return True
+    else:
+        print(f"  WARNING: could not close ticket — no matching transition found.")
+        return False
+
+###############################################################################
 def test_connection(email, token):
 ###############################################################################
     """
@@ -745,6 +775,22 @@ OR
     )
 
     parser.add_argument(
+        "--close-ticket",
+        default=None,
+        metavar="TICKET_ID",
+        help="Close a specific ticket by ID (e.g., SES-42) without running bless. "
+             "Optionally post a comment and transition to resolved. "
+             "Use with --comment to add a note before closing.",
+    )
+
+    parser.add_argument(
+        "--comment",
+        default=None,
+        metavar="TEXT",
+        help="Comment text to post to the ticket. Used with --close-ticket.",
+    )
+
+    parser.add_argument(
         "--test-connection",
         default=False,
         action="store_true",
@@ -764,12 +810,11 @@ def _main_func(description):
             print("ERROR: --email and --token are required when not using --action.")
             sys.exit(1)
 
-    # Direct use of an action implies dry_run:
-    else:
-        args.bless_dry_run = True
-
     if args.test_connection:
         success = test_connection(args.email, args.token)
+    elif args.close_ticket:
+        success = close_ticket(args.email, args.token, args.close_ticket,
+                              comment_text=args.comment, no_transition=args.no_transition)
     else:
         if args.root is None:
             args.root = _resolve_root(args.machine)
@@ -787,7 +832,7 @@ def _main_func(description):
                                      bless_dry_run=args.bless_dry_run, root=args.root)
         else:
             success = poll_jira_bless(**{k: v for k, v in vars(args).items()
-                                         if k not in ("test_connection", "user", "action")})
+                                         if k not in ("test_connection", "user", "action", "close_ticket", "comment")})
     sys.exit(0 if success else 1)
 
 ###############################################################################
