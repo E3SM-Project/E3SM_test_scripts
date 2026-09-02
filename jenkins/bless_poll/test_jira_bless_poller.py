@@ -252,6 +252,23 @@ class TestBuildBlessCmd(unittest.TestCase):
         cmd = jbp.build_bless_cmd("e3sm_developer_next_gnu", ["ERS*"], "both", bless_dry_run=False)
         self.assertNotIn("--dry-run", cmd)
 
+    def test_excludes_added_to_command(self):
+        cmd = jbp.build_bless_cmd("e3sm_developer_next_gnu", ["ERS*"], "both", excludes=["ERS_Ls*"])
+        self.assertIn("--exclude", cmd)
+        exclude_idx = cmd.index("--exclude")
+        self.assertEqual(cmd[exclude_idx + 1], "ERS_Ls*")
+
+    def test_multiple_excludes_added_to_command(self):
+        cmd = jbp.build_bless_cmd("e3sm_developer_next_gnu", ["ERS*"], "both", excludes=["ERS_Ls*", "SMS*"])
+        self.assertIn("--exclude", cmd)
+        exclude_idx = cmd.index("--exclude")
+        self.assertEqual(cmd[exclude_idx + 1], "ERS_Ls*")
+        self.assertEqual(cmd[exclude_idx + 2], "SMS*")
+
+    def test_no_excludes_omits_exclude_flag(self):
+        cmd = jbp.build_bless_cmd("e3sm_developer_next_gnu", ["ERS*"], "both", excludes=None)
+        self.assertNotIn("--exclude", cmd)
+
 ###############################################################################
 class TestProcessAction(unittest.TestCase):
 ###############################################################################
@@ -338,6 +355,32 @@ class TestProcessAction(unittest.TestCase):
             self.assertTrue(result)
             mock_invoke.assert_not_called()
 
+    def test_excludes_parsed_from_action_string(self):
+        with patch.object(jbp, "_invoke_bless", return_value=True) as mock_invoke:
+            jbp.process_action("e3sm_dev_suite_gnu, BOTH, ERS*, -ERS_Ls*")
+            args, kwargs = mock_invoke.call_args
+            self.assertEqual(kwargs.get("excludes"), ["ERS_Ls*"])
+
+    def test_multiple_excludes_parsed(self):
+        with patch.object(jbp, "_invoke_bless", return_value=True) as mock_invoke:
+            jbp.process_action("e3sm_dev_suite_gnu, BOTH, ERS*, -ERS_Ls*, -SMS*")
+            args, kwargs = mock_invoke.call_args
+            self.assertEqual(kwargs.get("excludes"), ["ERS_Ls*", "SMS*"])
+
+    def test_excludes_separated_from_includes(self):
+        with patch.object(jbp, "_invoke_bless", return_value=True) as mock_invoke:
+            jbp.process_action("e3sm_dev_suite_gnu, BOTH, ERS*, SMS*, -ERS_Ls*")
+            args, kwargs = mock_invoke.call_args
+            cases = args[1]  # cases is 2nd positional arg
+            self.assertEqual(cases, ["ERS*", "SMS*"])
+            self.assertEqual(kwargs.get("excludes"), ["ERS_Ls*"])
+
+    def test_no_excludes_passes_none(self):
+        with patch.object(jbp, "_invoke_bless", return_value=True) as mock_invoke:
+            jbp.process_action("e3sm_dev_suite_gnu, BOTH, ERS*")
+            args, kwargs = mock_invoke.call_args
+            self.assertIsNone(kwargs.get("excludes"))
+
 ###############################################################################
 class TestInvokeBless(unittest.TestCase):
 ###############################################################################
@@ -394,6 +437,23 @@ class TestInvokeBless(unittest.TestCase):
         kwargs = mock_fn.call_args[1]
         self.assertTrue(kwargs["hist_only"])
         self.assertFalse(kwargs["namelists_only"])
+
+    def test_cime_excludes_forwarded(self):
+        cm, mock_fn = self._mock_cime(return_value=True)
+        with cm, patch.object(jbp, "_setup_cime_path", return_value=True):
+            jbp._invoke_bless(self._SUITE, ["ERS*"], "both", "/root/J", "", excludes=["ERS_Ls*"])
+        kwargs = mock_fn.call_args[1]
+        self.assertEqual(kwargs["exclude"], ["ERS_Ls*"])
+
+    def test_subprocess_fallback_with_excludes(self):
+        mock_result = MagicMock(returncode=0, stdout="", stderr="")
+        with patch.object(jbp, "_setup_cime_path", return_value=False), \
+             patch("subprocess.run", return_value=mock_result) as mock_run:
+            jbp._invoke_bless(self._SUITE, ["ERS*"], "both", "/root/J", "", excludes=["ERS_Ls*"])
+        cmd = mock_run.call_args[0][0]
+        self.assertIn("--exclude", cmd)
+        exclude_idx = cmd.index("--exclude")
+        self.assertEqual(cmd[exclude_idx + 1], "ERS_Ls*")
 
     def test_subprocess_fallback_when_cime_unavailable(self):
         mock_result = MagicMock(returncode=0, stdout="", stderr="")

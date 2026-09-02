@@ -339,7 +339,7 @@ def parse_suite(suite):
     return test_id, compiler
 
 ###############################################################################
-def build_bless_cmd(suite, cases, action, root=None, bless_dry_run=False):
+def build_bless_cmd(suite, cases, action, root=None, bless_dry_run=False, excludes=None):
 ###############################################################################
     """
     Return the bless_test_results argv list for one test suite.
@@ -347,6 +347,7 @@ def build_bless_cmd(suite, cases, action, root=None, bless_dry_run=False):
     -f (force) is always added once.
     Case regexes are positional arguments; omitted when cases is ["*"] (all cases).
     If root is provided it is passed as -r <root>.
+    If excludes is provided, adds --exclude args for each exclude pattern.
     If bless_dry_run is True, --dry-run is appended.
     """
     test_id, compiler = parse_suite(suite)
@@ -355,6 +356,9 @@ def build_bless_cmd(suite, cases, action, root=None, bless_dry_run=False):
         cmd += ["-r", root]
     if len(cases) > 1 or (cases[0] not in ["*", ".*"]):
         cmd += [f"'{case}'" for case in cases]
+    if excludes:
+        cmd.append("--exclude")
+        cmd += excludes
     if action == "hists":
         cmd.append("--hist-only")
     elif action == "nmls":
@@ -365,7 +369,7 @@ def build_bless_cmd(suite, cases, action, root=None, bless_dry_run=False):
 
 _LOGGING_CONFIGURED = False
 ###############################################################################
-def _invoke_bless(suite, cases, action, root, indent, bless_dry_run=False):
+def _invoke_bless(suite, cases, action, root, indent, bless_dry_run=False, excludes=None):
 ###############################################################################
     """
     Run bless_test_results for one test suite, using the CIME Python API when
@@ -373,6 +377,8 @@ def _invoke_bless(suite, cases, action, root, indent, bless_dry_run=False):
 
     bless_dry_run=True passes dry_run=True to the CIME API (or --dry-run to the
     subprocess), so bless identifies what it would change without modifying baselines.
+
+    excludes: list of patterns to exclude from bless (optional).
 
     Returns True on success.
     """
@@ -398,6 +404,7 @@ def _invoke_bless(suite, cases, action, root, indent, bless_dry_run=False):
                 hist_only=(action == "hists"),
                 force=True,
                 bless_tests=None if cases == ["*"] else cases,
+                exclude=excludes,
                 dry_run=bless_dry_run,
             )
             print(f"{indent}=============== BLESS_TEST_RESULT OUTPUT ENDS HERE ==================")
@@ -412,7 +419,7 @@ def _invoke_bless(suite, cases, action, root, indent, bless_dry_run=False):
 
     # Subprocess fallback
     print(f"{indent}CIME import failed, invoking through shell!")
-    cmd = build_bless_cmd(suite, cases, action, root=root, bless_dry_run=bless_dry_run)
+    cmd = build_bless_cmd(suite, cases, action, root=root, bless_dry_run=bless_dry_run, excludes=excludes)
     result = subprocess.run(cmd, capture_output=True, text=True)
     output = (result.stdout + result.stderr).strip()
     if output:
@@ -486,8 +493,10 @@ def process_action(action, indent="", dry_run=False, bless_dry_run=False, root=N
 ###############################################################################
     """
     Parse and execute a single bless action string of the form:
-      "suite_name, task, case_regex [, case_regex ...]"
-    where task is NML, HIST, or BOTH.  Return True on success.
+      "suite_name, task, case_regex [, case_regex ...] [, -exclude_regex ...]"
+    where task is NML, HIST, or BOTH.
+    Case regexes starting with "-" are treated as excludes.
+    Return True on success.
 
     dry_run=True  : print the equivalent shell command only; do not invoke bless.
     bless_dry_run : invoke bless_test_results with its own dry-run mode (shows
@@ -503,7 +512,7 @@ def process_action(action, indent="", dry_run=False, bless_dry_run=False, root=N
 
     suite    = parts[0]
     task_raw = parts[1].upper()
-    cases    = parts[2:]
+    case_parts = parts[2:]
 
     if task_raw not in TASK_MAP:
         print(f"{indent}ERROR: unknown task {task_raw!r}; expected one of {list(TASK_MAP.keys())}")
@@ -511,9 +520,14 @@ def process_action(action, indent="", dry_run=False, bless_dry_run=False, root=N
 
     task = TASK_MAP[task_raw]
 
+    # Separate includes from excludes (excludes start with "-")
+    cases = [c for c in case_parts if not c.startswith("-")]
+    excludes = [c[1:] for c in case_parts if c.startswith("-")]
+    excludes = excludes if excludes else None
+
     # Parse early so we can validate and display before running
     try:
-        cmd = build_bless_cmd(suite, cases, task, root=root, bless_dry_run=bless_dry_run)
+        cmd = build_bless_cmd(suite, cases, task, root=root, bless_dry_run=bless_dry_run, excludes=excludes)
     except ValueError as exc:
         print(f"{indent}ERROR: {exc}")
         return False
@@ -524,7 +538,7 @@ def process_action(action, indent="", dry_run=False, bless_dry_run=False, root=N
 
     label = "BLESS-DRY-RUN" if bless_dry_run else "Running"
     print(f"{indent}{label}: {' '.join(cmd)}")
-    success = _invoke_bless(suite, cases, task, root, indent + "  ", bless_dry_run=bless_dry_run)
+    success = _invoke_bless(suite, cases, task, root, indent + "  ", bless_dry_run=bless_dry_run, excludes=excludes)
     if not success:
         print(f"{indent}ERROR: bless_test_results failed for {suite}")
     else:
