@@ -201,7 +201,7 @@ class TestBuildBlessCmd(unittest.TestCase):
         self.assertIn("-c", cmd)
         self.assertEqual(cmd[cmd.index("-c") + 1], "gnu")
         self.assertIn("-f", cmd)
-        self.assertIn("ERS*", cmd)
+        self.assertIn("'ERS*'", cmd)
         self.assertNotIn("--hist-only", cmd)
         self.assertNotIn("-n", cmd)
 
@@ -225,9 +225,9 @@ class TestBuildBlessCmd(unittest.TestCase):
         cmd = jbp.build_bless_cmd("e3sm_s_next_gnu", ["ERS*", "SMS*", "PET*"], "both")
         self.assertEqual(cmd.count("-f"), 1)
         f_idx = cmd.index("-f")
-        self.assertEqual(cmd[f_idx + 1], "ERS*")
-        self.assertEqual(cmd[f_idx + 2], "SMS*")
-        self.assertEqual(cmd[f_idx + 3], "PET*")
+        self.assertEqual(cmd[f_idx + 1], "'ERS*'")
+        self.assertEqual(cmd[f_idx + 2], "'SMS*'")
+        self.assertEqual(cmd[f_idx + 3], "'PET*'")
 
     def test_wildcard_case_omits_case_args(self):
         cmd = jbp.build_bless_cmd("e3sm_developer_next_gnu", ["*"], "both")
