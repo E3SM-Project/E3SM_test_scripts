@@ -689,6 +689,10 @@ OR
     \033[1;32m# Test your regex offline. Must run on same machine as nightly\033[0m
     > {0} -a 'e3sm_developer_next_gnu, BOTH, .*F2010.*'
 
+    \033[1;32m# Tell Jira to just close a ticket \033[0m
+    > {0} --email=you@example.com --token <api-token> --close-ticket <ticket-id> --comment="Force close from tool"
+
+
 """.format(pathlib.Path(args[0]).name),
         description=description,
         formatter_class=argparse.RawDescriptionHelpFormatter,
