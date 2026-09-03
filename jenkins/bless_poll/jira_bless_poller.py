@@ -358,7 +358,7 @@ def build_bless_cmd(suite, cases, action, root=None, bless_dry_run=False, exclud
         cmd += [f"'{case}'" for case in cases]
     if excludes:
         cmd.append("--exclude")
-        cmd += excludes
+        cmd += [f"'{exclude}'" for exclude in excludes]
     if action == "hists":
         cmd.append("--hist-only")
     elif action == "nmls":
