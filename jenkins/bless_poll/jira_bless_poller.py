@@ -235,13 +235,30 @@ def add_comment(headers, issue_key, text):
 ###############################################################################
     """
     Post a plain-text comment in Atlassian Document Format.
+    If text exceeds 32000 characters (Jira limit), split into multiple comments.
     """
-    _jira_post(f"/rest/api/3/issue/{issue_key}/comment", headers, {
-        "body": {
-            "type": "doc", "version": 1,
-            "content": [{"type": "paragraph", "content": [{"type": "text", "text": text}]}],
-        }
-    })
+    JIRA_COMMENT_LIMIT = 32000
+
+    if len(text) <= JIRA_COMMENT_LIMIT:
+        _jira_post(f"/rest/api/3/issue/{issue_key}/comment", headers, {
+            "body": {
+                "type": "doc", "version": 1,
+                "content": [{"type": "paragraph", "content": [{"type": "text", "text": text}]}],
+            }
+        })
+    else:
+        # Split into multiple comments
+        total_parts = (len(text) + JIRA_COMMENT_LIMIT - 1) // JIRA_COMMENT_LIMIT
+        for part_num, i in enumerate(range(0, len(text), JIRA_COMMENT_LIMIT), 1):
+            part = text[i:i + JIRA_COMMENT_LIMIT]
+            header = f"[Part {part_num}/{total_parts}]\n\n" if total_parts > 1 else ""
+            comment_text = header + part
+            _jira_post(f"/rest/api/3/issue/{issue_key}/comment", headers, {
+                "body": {
+                    "type": "doc", "version": 1,
+                    "content": [{"type": "paragraph", "content": [{"type": "text", "text": comment_text}]}],
+                }
+            })
 
 ###############################################################################
 def transition_issue(headers, issue_key, transition_names, label="transition"):

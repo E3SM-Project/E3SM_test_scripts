@@ -936,6 +936,60 @@ class TestCloseTicket(unittest.TestCase):
         mock_exit.assert_called_with(0)
 
 ###############################################################################
+class TestAddComment(unittest.TestCase):
+###############################################################################
+    """Tests for add_comment with Jira's 32k limit."""
+
+    def test_short_comment_single_post(self):
+        """Comment under 32k should be posted as-is."""
+        with patch.object(jbp, "_jira_post") as mock_post:
+            jbp.add_comment({}, "SES-1", "short comment")
+        mock_post.assert_called_once()
+        call_args = mock_post.call_args[0]
+        body = call_args[2]["body"]
+        self.assertIn("short comment", body["content"][0]["content"][0]["text"])
+
+    def test_exactly_32k_comment(self):
+        """Comment exactly at 32k limit should be single post."""
+        text = "x" * 32000
+        with patch.object(jbp, "_jira_post") as mock_post:
+            jbp.add_comment({}, "SES-1", text)
+        mock_post.assert_called_once()
+
+    def test_over_32k_comment_split(self):
+        """Comment over 32k should be split into multiple posts."""
+        text = "x" * 50000  # 50k, will need 2 posts
+        with patch.object(jbp, "_jira_post") as mock_post:
+            jbp.add_comment({}, "SES-1", text)
+        self.assertEqual(mock_post.call_count, 2)
+
+    def test_split_comment_has_headers(self):
+        """Split comments should have [Part N/M] headers."""
+        text = "x" * 50000  # 50k, will need 2 posts
+        with patch.object(jbp, "_jira_post") as mock_post:
+            jbp.add_comment({}, "SES-1", text)
+        # First part
+        first_body = mock_post.call_args_list[0][0][2]["body"]
+        first_text = first_body["content"][0]["content"][0]["text"]
+        self.assertIn("[Part 1/2]", first_text)
+        # Second part
+        second_body = mock_post.call_args_list[1][0][2]["body"]
+        second_text = second_body["content"][0]["content"][0]["text"]
+        self.assertIn("[Part 2/2]", second_text)
+
+    def test_three_way_split(self):
+        """Comment requiring 3+ posts should have correct headers."""
+        text = "x" * 100000  # 100k, will need ~4 posts
+        with patch.object(jbp, "_jira_post") as mock_post:
+            jbp.add_comment({}, "SES-1", text)
+        self.assertEqual(mock_post.call_count, 4)
+        # Check headers
+        for i in range(4):
+            body = mock_post.call_args_list[i][0][2]["body"]
+            comment_text = body["content"][0]["content"][0]["text"]
+            self.assertIn(f"[Part {i+1}/4]", comment_text)
+
+###############################################################################
 
 if __name__ == "__main__":
     unittest.main()
