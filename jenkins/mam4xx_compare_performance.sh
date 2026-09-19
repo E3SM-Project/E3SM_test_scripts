@@ -121,8 +121,11 @@ main() {
     cat eamxx_performance_${resolution}.csv
 
     # do the plotting
-    #cd ${parent_dir}
-    cd /global/cfs/projectdirs/e3sm/litzingj
+    if [ "$mach" = "pm-gpu" ]; then
+      cd /global/cfs/projectdirs/e3sm/litzingj
+    elif [ "$mach" = "compy" ]; then
+      cd ${parent_dir}
+    fi
     source .venv/bin/activate
     cd E3SM_test_scripts/jenkins
     python3 mam4xx_plot_compare_performance.py -r $resolution -m $mach -e $compset_eamxx -x $compset_mam4xx -d $data_dest -t $simulation_length
