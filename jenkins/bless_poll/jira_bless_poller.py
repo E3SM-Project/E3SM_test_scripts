@@ -178,20 +178,40 @@ def _auth_headers(email, token):
     }
 
 ###############################################################################
-def _http(method, path, headers, payload=None, params=None):
+HTTP_MAX_ATTEMPTS = 3
+HTTP_RETRY_DELAY  = 2.0  # seconds
+
 ###############################################################################
+def _http(method, path, headers, payload=None, params=None,
+          max_attempts=HTTP_MAX_ATTEMPTS, retry_delay=HTTP_RETRY_DELAY):
+###############################################################################
+    """
+    Perform a single HTTP request against the Jira API, retrying on any
+    failure (HTTP error or network-level error) up to max_attempts times.
+    """
     url = f"{JIRA_BASE_URL}{path}"
     if params:
         url += "?" + urllib.parse.urlencode(params)
     data = json.dumps(payload).encode() if payload is not None else None
     req  = urllib.request.Request(url, data=data, headers=headers, method=method)
-    try:
-        with urllib.request.urlopen(req, context=_ssl_ctx()) as resp:
-            body = resp.read()
-            return json.loads(body) if body else {}
-    except urllib.error.HTTPError as exc:
-        body = exc.read().decode(errors="replace")
-        raise RuntimeError(f"HTTP {exc.code} {method} {url}: {body}") from exc
+
+    for attempt in range(1, max_attempts + 1):
+        try:
+            with urllib.request.urlopen(req, context=_ssl_ctx()) as resp:
+                body = resp.read()
+                return json.loads(body) if body else {}
+        except urllib.error.HTTPError as exc:
+            body = exc.read().decode(errors="replace")
+            err  = RuntimeError(f"HTTP {exc.code} {method} {url}: {body}")
+        except urllib.error.URLError as exc:
+            err  = RuntimeError(f"Network error {method} {url}: {exc}")
+        if attempt < max_attempts:
+            print(f"  WARNING: {method} {url} failed "
+                  f"(attempt {attempt}/{max_attempts}), retrying in "
+                  f"{retry_delay}s: {err}")
+            time.sleep(retry_delay)
+        else:
+            raise err
 
 ###############################################################################
 def _jira_get(path, headers, params=None):
@@ -261,63 +281,36 @@ def add_comment(headers, issue_key, text):
             })
 
 ###############################################################################
-TRANSITION_MAX_ATTEMPTS = 3
-TRANSITION_RETRY_DELAY  = 2.0  # seconds
-###############################################################################
-def transition_issue(headers, issue_key, transition_names, label="transition",
-                     max_attempts=TRANSITION_MAX_ATTEMPTS,
-                     retry_delay=TRANSITION_RETRY_DELAY):
+def transition_issue(headers, issue_key, transition_names, label="transition"):
 ###############################################################################
     """
     Try each name in transition_names against the ticket's available transitions.
-    Returns the matched name on success, or None if all attempts failed.
-
-    Retries the whole cycle (re-fetch transitions + try each name) up to
-    max_attempts times to handle transient failures and workflow races.
+    Returns the matched name on success, or None if no match was found.
 
     If Jira rejects a transition (e.g. "Action NNN is invalid" from workflow
-    conditions/validators), fall through to the next matching name.
+    conditions/validators), fall through to the next matching name rather than
+    raising. Transient failures (5xx, network errors) are retried inside _http.
     """
-    last_attempted = []
-    last_available = []
-    for attempt in range(1, max_attempts + 1):
-        try:
-            data = _jira_get(f"/rest/api/3/issue/{issue_key}/transitions", headers)
-        except RuntimeError as exc:
-            print(f"  [{issue_key}] WARNING: fetch of transitions failed on "
-                  f"attempt {attempt}/{max_attempts}: {exc}")
-            if attempt < max_attempts:
-                time.sleep(retry_delay)
-            continue
-
-        name_to_id     = {t["name"].lower(): t["id"] for t in data.get("transitions", [])}
-        last_available = list(name_to_id.keys())
-        attempted      = []
-        for name in transition_names:
-            if name in name_to_id:
-                attempted.append(name)
-                try:
-                    _jira_post(f"/rest/api/3/issue/{issue_key}/transitions", headers,
-                               {"transition": {"id": name_to_id[name]}})
-                    return name
-                except RuntimeError as exc:
-                    print(f"  [{issue_key}] WARNING: {label} transition {name!r} "
-                          f"(id={name_to_id[name]}) rejected by Jira "
-                          f"(attempt {attempt}/{max_attempts}): {exc}")
-                    continue
-        last_attempted = attempted
-        if attempt < max_attempts:
-            print(f"  [{issue_key}] Retrying {label} transition "
-                  f"(attempt {attempt+1}/{max_attempts}) after {retry_delay}s...")
-            time.sleep(retry_delay)
-
-    if last_attempted:
-        print(f"  [{issue_key}] WARNING: no {label} transition succeeded after "
-              f"{max_attempts} attempts. Attempted: {last_attempted}. "
-              f"Available: {last_available}")
+    data       = _jira_get(f"/rest/api/3/issue/{issue_key}/transitions", headers)
+    name_to_id = {t["name"].lower(): t["id"] for t in data.get("transitions", [])}
+    attempted = []
+    for name in transition_names:
+        if name in name_to_id:
+            attempted.append(name)
+            try:
+                _jira_post(f"/rest/api/3/issue/{issue_key}/transitions", headers,
+                           {"transition": {"id": name_to_id[name]}})
+                return name
+            except RuntimeError as exc:
+                print(f"  [{issue_key}] WARNING: {label} transition {name!r} "
+                      f"(id={name_to_id[name]}) rejected by Jira: {exc}")
+                continue
+    if attempted:
+        print(f"  [{issue_key}] WARNING: no {label} transition succeeded. "
+              f"Attempted: {attempted}. Available: {list(name_to_id.keys())}")
     else:
-        print(f"  [{issue_key}] WARNING: no {label} transition found after "
-              f"{max_attempts} attempts. Available: {last_available}")
+        print(f"  [{issue_key}] WARNING: no {label} transition found. "
+              f"Available: {list(name_to_id.keys())}")
     return None
 
 ###############################################################################

@@ -13,7 +13,9 @@ or:
 """
 
 import getpass
+import io
 import os, sys, tempfile, unittest
+import urllib.error, urllib.request
 from unittest.mock import MagicMock, patch
 
 sys.path.insert(0, os.path.dirname(__file__))
@@ -944,7 +946,7 @@ class TestTransitionIssue(unittest.TestCase):
         transitions = {"transitions": [{"name": "Resolved", "id": "31"}]}
         with patch.object(jbp, "_jira_get", return_value=transitions), \
              patch.object(jbp, "_jira_post", return_value={}) as mock_post:
-            result = jbp.transition_issue({}, "SES-1", ["resolved"], retry_delay=0)
+            result = jbp.transition_issue({}, "SES-1", ["resolved"])
         self.assertEqual(result, "resolved")
         mock_post.assert_called_once()
 
@@ -952,7 +954,7 @@ class TestTransitionIssue(unittest.TestCase):
         transitions = {"transitions": [{"name": "In Progress", "id": "11"}]}
         with patch.object(jbp, "_jira_get", return_value=transitions), \
              patch.object(jbp, "_jira_post") as mock_post:
-            result = jbp.transition_issue({}, "SES-1", ["resolved", "done"], retry_delay=0)
+            result = jbp.transition_issue({}, "SES-1", ["resolved", "done"])
         self.assertIsNone(result)
         mock_post.assert_not_called()
 
@@ -963,15 +965,14 @@ class TestTransitionIssue(unittest.TestCase):
             {"name": "Resolve This Issue", "id": "801"},
             {"name": "Done",               "id": "41"},
         ]}
-        # First POST fails, second POST succeeds
         post_side_effects = [
-            RuntimeError("Jira POST failed 400: Action 801 is invalid"),
+            RuntimeError("HTTP 400 POST ...: Action 801 is invalid"),
             {},
         ]
         with patch.object(jbp, "_jira_get", return_value=transitions), \
              patch.object(jbp, "_jira_post", side_effect=post_side_effects) as mock_post:
             result = jbp.transition_issue({}, "SES-1",
-                                          ["resolve this issue", "done"], retry_delay=0)
+                                          ["resolve this issue", "done"])
         self.assertEqual(result, "done")
         self.assertEqual(mock_post.call_count, 2)
 
@@ -985,51 +986,109 @@ class TestTransitionIssue(unittest.TestCase):
              patch.object(jbp, "_jira_post",
                           side_effect=RuntimeError("Action 801 is invalid")) as mock_post:
             result = jbp.transition_issue({}, "SES-1",
-                                          ["resolve this issue", "done"],
-                                          max_attempts=3, retry_delay=0)
+                                          ["resolve this issue", "done"])
         self.assertIsNone(result)
-        # 2 transitions attempted × 3 attempts = 6 POSTs
-        self.assertEqual(mock_post.call_count, 6)
-
-    def test_retry_succeeds_on_second_attempt(self):
-        """If first cycle fails but second succeeds, return the matched name."""
-        transitions = {"transitions": [{"name": "Resolved", "id": "31"}]}
-        # First POST fails, second POST succeeds
-        post_side_effects = [
-            RuntimeError("Jira POST failed 500: transient error"),
-            {},
-        ]
-        with patch.object(jbp, "_jira_get", return_value=transitions), \
-             patch.object(jbp, "_jira_post", side_effect=post_side_effects) as mock_post:
-            result = jbp.transition_issue({}, "SES-1", ["resolved"],
-                                          max_attempts=3, retry_delay=0)
-        self.assertEqual(result, "resolved")
         self.assertEqual(mock_post.call_count, 2)
 
-    def test_retries_on_get_failure(self):
-        """If the transitions GET fails, retry the cycle."""
-        transitions = {"transitions": [{"name": "Resolved", "id": "31"}]}
-        get_side_effects = [
-            RuntimeError("Jira GET failed 503: temporary"),
-            transitions,
-        ]
-        with patch.object(jbp, "_jira_get", side_effect=get_side_effects), \
-             patch.object(jbp, "_jira_post", return_value={}) as mock_post:
-            result = jbp.transition_issue({}, "SES-1", ["resolved"],
-                                          max_attempts=3, retry_delay=0)
-        self.assertEqual(result, "resolved")
-        mock_post.assert_called_once()
 
-    def test_max_attempts_respected(self):
-        """max_attempts=1 should not retry."""
-        transitions = {"transitions": [{"name": "Resolved", "id": "31"}]}
-        with patch.object(jbp, "_jira_get", return_value=transitions), \
-             patch.object(jbp, "_jira_post",
-                          side_effect=RuntimeError("always fails")) as mock_post:
-            result = jbp.transition_issue({}, "SES-1", ["resolved"],
-                                          max_attempts=1, retry_delay=0)
-        self.assertIsNone(result)
-        self.assertEqual(mock_post.call_count, 1)
+###############################################################################
+class TestHttpRetry(unittest.TestCase):
+###############################################################################
+    """Tests for _http retry logic on transient failures."""
+
+    def _make_http_error(self, code, body=b"error"):
+        exc = urllib.error.HTTPError(url="http://x", code=code, msg="err",
+                                     hdrs=None, fp=io.BytesIO(body))
+        return exc
+
+    def test_success_no_retry(self):
+        fake_resp = MagicMock()
+        fake_resp.read.return_value = b'{"ok": true}'
+        fake_resp.__enter__ = lambda s: fake_resp
+        fake_resp.__exit__  = lambda *a: None
+        with patch("urllib.request.urlopen", return_value=fake_resp) as mock_open:
+            result = jbp._http("GET", "/rest/api/3/x", {}, retry_delay=0)
+        self.assertEqual(result, {"ok": True})
+        self.assertEqual(mock_open.call_count, 1)
+
+    def test_5xx_is_retried(self):
+        """5xx errors should trigger retries."""
+        fake_resp = MagicMock()
+        fake_resp.read.return_value = b'{"ok": true}'
+        fake_resp.__enter__ = lambda s: fake_resp
+        fake_resp.__exit__  = lambda *a: None
+        # First two calls raise 503, third succeeds
+        side_effects = [
+            self._make_http_error(503, b"service unavailable"),
+            self._make_http_error(503, b"service unavailable"),
+            fake_resp,
+        ]
+        with patch("urllib.request.urlopen", side_effect=side_effects) as mock_open:
+            result = jbp._http("GET", "/rest/api/3/x", {},
+                               max_attempts=3, retry_delay=0)
+        self.assertEqual(result, {"ok": True})
+        self.assertEqual(mock_open.call_count, 3)
+
+    def test_4xx_retried_and_raises_after_exhaustion(self):
+        """4xx errors are retried; raise after max_attempts."""
+        side_effects = [self._make_http_error(404, b"not found")] * 3
+        with patch("urllib.request.urlopen", side_effect=side_effects) as mock_open:
+            with self.assertRaises(RuntimeError) as cm:
+                jbp._http("GET", "/rest/api/3/issue/SES-999", {},
+                          max_attempts=3, retry_delay=0)
+        self.assertIn("404", str(cm.exception))
+        self.assertEqual(mock_open.call_count, 3)
+
+    def test_action_invalid_400_is_retried(self):
+        """'Action NNN is invalid' is a transient Jira workflow race; retry."""
+        fake_resp = MagicMock()
+        fake_resp.read.return_value = b'{"ok": true}'
+        fake_resp.__enter__ = lambda s: fake_resp
+        fake_resp.__exit__  = lambda *a: None
+        side_effects = [
+            self._make_http_error(400, b"Action 801 is invalid"),
+            fake_resp,
+        ]
+        with patch("urllib.request.urlopen", side_effect=side_effects) as mock_open:
+            result = jbp._http("POST", "/rest/api/3/issue/SES-1/transitions", {},
+                               payload={"transition": {"id": "801"}},
+                               max_attempts=3, retry_delay=0)
+        self.assertEqual(result, {"ok": True})
+        self.assertEqual(mock_open.call_count, 2)
+
+    def test_max_attempts_one_no_retry(self):
+        """max_attempts=1 disables retries."""
+        side_effects = [self._make_http_error(400, b"bad")]
+        with patch("urllib.request.urlopen", side_effect=side_effects) as mock_open:
+            with self.assertRaises(RuntimeError):
+                jbp._http("GET", "/rest/api/3/x", {},
+                          max_attempts=1, retry_delay=0)
+        self.assertEqual(mock_open.call_count, 1)
+
+    def test_network_error_retried(self):
+        """URLError (network-level) should trigger retries."""
+        fake_resp = MagicMock()
+        fake_resp.read.return_value = b'{"ok": true}'
+        fake_resp.__enter__ = lambda s: fake_resp
+        fake_resp.__exit__  = lambda *a: None
+        side_effects = [
+            urllib.error.URLError("connection reset"),
+            fake_resp,
+        ]
+        with patch("urllib.request.urlopen", side_effect=side_effects) as mock_open:
+            result = jbp._http("GET", "/rest/api/3/x", {},
+                               max_attempts=3, retry_delay=0)
+        self.assertEqual(result, {"ok": True})
+        self.assertEqual(mock_open.call_count, 2)
+
+    def test_5xx_exhausts_attempts_and_raises(self):
+        """After max_attempts of 5xx, raise RuntimeError."""
+        side_effects = [self._make_http_error(500, b"internal")] * 3
+        with patch("urllib.request.urlopen", side_effect=side_effects) as mock_open:
+            with self.assertRaises(RuntimeError):
+                jbp._http("GET", "/rest/api/3/x", {},
+                          max_attempts=3, retry_delay=0)
+        self.assertEqual(mock_open.call_count, 3)
 
 ###############################################################################
 class TestAddComment(unittest.TestCase):
