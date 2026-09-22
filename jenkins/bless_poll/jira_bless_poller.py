@@ -266,16 +266,31 @@ def transition_issue(headers, issue_key, transition_names, label="transition"):
     """
     Try each name in transition_names against the ticket's available transitions.
     Returns the matched name on success, or None if no match was found.
+
+    If Jira rejects a transition (e.g. "Action NNN is invalid" from workflow
+    conditions/validators), fall through to the next matching name rather than
+    raising.
     """
     data       = _jira_get(f"/rest/api/3/issue/{issue_key}/transitions", headers)
     name_to_id = {t["name"].lower(): t["id"] for t in data.get("transitions", [])}
+    attempted = []
     for name in transition_names:
         if name in name_to_id:
-            _jira_post(f"/rest/api/3/issue/{issue_key}/transitions", headers,
-                       {"transition": {"id": name_to_id[name]}})
-            return name
-    print(f"  [{issue_key}] WARNING: no {label} transition found. "
-          f"Available: {list(name_to_id.keys())}")
+            attempted.append(name)
+            try:
+                _jira_post(f"/rest/api/3/issue/{issue_key}/transitions", headers,
+                           {"transition": {"id": name_to_id[name]}})
+                return name
+            except RuntimeError as exc:
+                print(f"  [{issue_key}] WARNING: {label} transition {name!r} "
+                      f"(id={name_to_id[name]}) rejected by Jira: {exc}")
+                continue
+    if attempted:
+        print(f"  [{issue_key}] WARNING: no {label} transition succeeded. "
+              f"Attempted: {attempted}. Available: {list(name_to_id.keys())}")
+    else:
+        print(f"  [{issue_key}] WARNING: no {label} transition found. "
+              f"Available: {list(name_to_id.keys())}")
     return None
 
 ###############################################################################

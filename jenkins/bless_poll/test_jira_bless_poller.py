@@ -936,6 +936,60 @@ class TestCloseTicket(unittest.TestCase):
         mock_exit.assert_called_with(0)
 
 ###############################################################################
+class TestTransitionIssue(unittest.TestCase):
+###############################################################################
+    """Tests for transition_issue, including recovery when Jira rejects a transition."""
+
+    def test_success_on_first_match(self):
+        transitions = {"transitions": [{"name": "Resolved", "id": "31"}]}
+        with patch.object(jbp, "_jira_get", return_value=transitions), \
+             patch.object(jbp, "_jira_post", return_value={}) as mock_post:
+            result = jbp.transition_issue({}, "SES-1", ["resolved"])
+        self.assertEqual(result, "resolved")
+        mock_post.assert_called_once()
+
+    def test_no_matching_name_returns_none(self):
+        transitions = {"transitions": [{"name": "In Progress", "id": "11"}]}
+        with patch.object(jbp, "_jira_get", return_value=transitions), \
+             patch.object(jbp, "_jira_post") as mock_post:
+            result = jbp.transition_issue({}, "SES-1", ["resolved", "done"])
+        self.assertIsNone(result)
+        mock_post.assert_not_called()
+
+    def test_falls_through_when_first_rejected(self):
+        """If Jira rejects the first matched transition (e.g. 'Action 801 is
+        invalid'), try the next matching name."""
+        transitions = {"transitions": [
+            {"name": "Resolve This Issue", "id": "801"},
+            {"name": "Done",               "id": "41"},
+        ]}
+        # First POST fails, second POST succeeds
+        post_side_effects = [
+            RuntimeError("Jira POST failed 400: Action 801 is invalid"),
+            {},
+        ]
+        with patch.object(jbp, "_jira_get", return_value=transitions), \
+             patch.object(jbp, "_jira_post", side_effect=post_side_effects) as mock_post:
+            result = jbp.transition_issue({}, "SES-1",
+                                          ["resolve this issue", "done"])
+        self.assertEqual(result, "done")
+        self.assertEqual(mock_post.call_count, 2)
+
+    def test_all_rejected_returns_none(self):
+        """If every matching transition is rejected by Jira, return None."""
+        transitions = {"transitions": [
+            {"name": "Resolve This Issue", "id": "801"},
+            {"name": "Done",               "id": "41"},
+        ]}
+        with patch.object(jbp, "_jira_get", return_value=transitions), \
+             patch.object(jbp, "_jira_post",
+                          side_effect=RuntimeError("Action 801 is invalid")) as mock_post:
+            result = jbp.transition_issue({}, "SES-1",
+                                          ["resolve this issue", "done"])
+        self.assertIsNone(result)
+        self.assertEqual(mock_post.call_count, 2)
+
+###############################################################################
 class TestAddComment(unittest.TestCase):
 ###############################################################################
     """Tests for add_comment with Jira's 32k limit."""
