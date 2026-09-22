@@ -23,7 +23,7 @@ This tool does offer an offline mode where the "action" is provided directly.
 This can be useful if you are using complex regexes and you want to test them.
 """
 
-import argparse, base64, getpass, io, json, os, socket, ssl, subprocess, sys, urllib.error, urllib.parse, urllib.request
+import argparse, base64, getpass, io, json, os, socket, ssl, subprocess, sys, time, urllib.error, urllib.parse, urllib.request
 import contextlib
 import pathlib
 
@@ -261,36 +261,63 @@ def add_comment(headers, issue_key, text):
             })
 
 ###############################################################################
-def transition_issue(headers, issue_key, transition_names, label="transition"):
+TRANSITION_MAX_ATTEMPTS = 3
+TRANSITION_RETRY_DELAY  = 2.0  # seconds
+###############################################################################
+def transition_issue(headers, issue_key, transition_names, label="transition",
+                     max_attempts=TRANSITION_MAX_ATTEMPTS,
+                     retry_delay=TRANSITION_RETRY_DELAY):
 ###############################################################################
     """
     Try each name in transition_names against the ticket's available transitions.
-    Returns the matched name on success, or None if no match was found.
+    Returns the matched name on success, or None if all attempts failed.
+
+    Retries the whole cycle (re-fetch transitions + try each name) up to
+    max_attempts times to handle transient failures and workflow races.
 
     If Jira rejects a transition (e.g. "Action NNN is invalid" from workflow
-    conditions/validators), fall through to the next matching name rather than
-    raising.
+    conditions/validators), fall through to the next matching name.
     """
-    data       = _jira_get(f"/rest/api/3/issue/{issue_key}/transitions", headers)
-    name_to_id = {t["name"].lower(): t["id"] for t in data.get("transitions", [])}
-    attempted = []
-    for name in transition_names:
-        if name in name_to_id:
-            attempted.append(name)
-            try:
-                _jira_post(f"/rest/api/3/issue/{issue_key}/transitions", headers,
-                           {"transition": {"id": name_to_id[name]}})
-                return name
-            except RuntimeError as exc:
-                print(f"  [{issue_key}] WARNING: {label} transition {name!r} "
-                      f"(id={name_to_id[name]}) rejected by Jira: {exc}")
-                continue
-    if attempted:
-        print(f"  [{issue_key}] WARNING: no {label} transition succeeded. "
-              f"Attempted: {attempted}. Available: {list(name_to_id.keys())}")
+    last_attempted = []
+    last_available = []
+    for attempt in range(1, max_attempts + 1):
+        try:
+            data = _jira_get(f"/rest/api/3/issue/{issue_key}/transitions", headers)
+        except RuntimeError as exc:
+            print(f"  [{issue_key}] WARNING: fetch of transitions failed on "
+                  f"attempt {attempt}/{max_attempts}: {exc}")
+            if attempt < max_attempts:
+                time.sleep(retry_delay)
+            continue
+
+        name_to_id     = {t["name"].lower(): t["id"] for t in data.get("transitions", [])}
+        last_available = list(name_to_id.keys())
+        attempted      = []
+        for name in transition_names:
+            if name in name_to_id:
+                attempted.append(name)
+                try:
+                    _jira_post(f"/rest/api/3/issue/{issue_key}/transitions", headers,
+                               {"transition": {"id": name_to_id[name]}})
+                    return name
+                except RuntimeError as exc:
+                    print(f"  [{issue_key}] WARNING: {label} transition {name!r} "
+                          f"(id={name_to_id[name]}) rejected by Jira "
+                          f"(attempt {attempt}/{max_attempts}): {exc}")
+                    continue
+        last_attempted = attempted
+        if attempt < max_attempts:
+            print(f"  [{issue_key}] Retrying {label} transition "
+                  f"(attempt {attempt+1}/{max_attempts}) after {retry_delay}s...")
+            time.sleep(retry_delay)
+
+    if last_attempted:
+        print(f"  [{issue_key}] WARNING: no {label} transition succeeded after "
+              f"{max_attempts} attempts. Attempted: {last_attempted}. "
+              f"Available: {last_available}")
     else:
-        print(f"  [{issue_key}] WARNING: no {label} transition found. "
-              f"Available: {list(name_to_id.keys())}")
+        print(f"  [{issue_key}] WARNING: no {label} transition found after "
+              f"{max_attempts} attempts. Available: {last_available}")
     return None
 
 ###############################################################################

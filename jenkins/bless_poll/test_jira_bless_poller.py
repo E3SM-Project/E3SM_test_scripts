@@ -944,7 +944,7 @@ class TestTransitionIssue(unittest.TestCase):
         transitions = {"transitions": [{"name": "Resolved", "id": "31"}]}
         with patch.object(jbp, "_jira_get", return_value=transitions), \
              patch.object(jbp, "_jira_post", return_value={}) as mock_post:
-            result = jbp.transition_issue({}, "SES-1", ["resolved"])
+            result = jbp.transition_issue({}, "SES-1", ["resolved"], retry_delay=0)
         self.assertEqual(result, "resolved")
         mock_post.assert_called_once()
 
@@ -952,7 +952,7 @@ class TestTransitionIssue(unittest.TestCase):
         transitions = {"transitions": [{"name": "In Progress", "id": "11"}]}
         with patch.object(jbp, "_jira_get", return_value=transitions), \
              patch.object(jbp, "_jira_post") as mock_post:
-            result = jbp.transition_issue({}, "SES-1", ["resolved", "done"])
+            result = jbp.transition_issue({}, "SES-1", ["resolved", "done"], retry_delay=0)
         self.assertIsNone(result)
         mock_post.assert_not_called()
 
@@ -971,7 +971,7 @@ class TestTransitionIssue(unittest.TestCase):
         with patch.object(jbp, "_jira_get", return_value=transitions), \
              patch.object(jbp, "_jira_post", side_effect=post_side_effects) as mock_post:
             result = jbp.transition_issue({}, "SES-1",
-                                          ["resolve this issue", "done"])
+                                          ["resolve this issue", "done"], retry_delay=0)
         self.assertEqual(result, "done")
         self.assertEqual(mock_post.call_count, 2)
 
@@ -985,9 +985,51 @@ class TestTransitionIssue(unittest.TestCase):
              patch.object(jbp, "_jira_post",
                           side_effect=RuntimeError("Action 801 is invalid")) as mock_post:
             result = jbp.transition_issue({}, "SES-1",
-                                          ["resolve this issue", "done"])
+                                          ["resolve this issue", "done"],
+                                          max_attempts=3, retry_delay=0)
         self.assertIsNone(result)
+        # 2 transitions attempted × 3 attempts = 6 POSTs
+        self.assertEqual(mock_post.call_count, 6)
+
+    def test_retry_succeeds_on_second_attempt(self):
+        """If first cycle fails but second succeeds, return the matched name."""
+        transitions = {"transitions": [{"name": "Resolved", "id": "31"}]}
+        # First POST fails, second POST succeeds
+        post_side_effects = [
+            RuntimeError("Jira POST failed 500: transient error"),
+            {},
+        ]
+        with patch.object(jbp, "_jira_get", return_value=transitions), \
+             patch.object(jbp, "_jira_post", side_effect=post_side_effects) as mock_post:
+            result = jbp.transition_issue({}, "SES-1", ["resolved"],
+                                          max_attempts=3, retry_delay=0)
+        self.assertEqual(result, "resolved")
         self.assertEqual(mock_post.call_count, 2)
+
+    def test_retries_on_get_failure(self):
+        """If the transitions GET fails, retry the cycle."""
+        transitions = {"transitions": [{"name": "Resolved", "id": "31"}]}
+        get_side_effects = [
+            RuntimeError("Jira GET failed 503: temporary"),
+            transitions,
+        ]
+        with patch.object(jbp, "_jira_get", side_effect=get_side_effects), \
+             patch.object(jbp, "_jira_post", return_value={}) as mock_post:
+            result = jbp.transition_issue({}, "SES-1", ["resolved"],
+                                          max_attempts=3, retry_delay=0)
+        self.assertEqual(result, "resolved")
+        mock_post.assert_called_once()
+
+    def test_max_attempts_respected(self):
+        """max_attempts=1 should not retry."""
+        transitions = {"transitions": [{"name": "Resolved", "id": "31"}]}
+        with patch.object(jbp, "_jira_get", return_value=transitions), \
+             patch.object(jbp, "_jira_post",
+                          side_effect=RuntimeError("always fails")) as mock_post:
+            result = jbp.transition_issue({}, "SES-1", ["resolved"],
+                                          max_attempts=1, retry_delay=0)
+        self.assertIsNone(result)
+        self.assertEqual(mock_post.call_count, 1)
 
 ###############################################################################
 class TestAddComment(unittest.TestCase):
