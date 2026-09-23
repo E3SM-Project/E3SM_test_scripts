@@ -84,7 +84,7 @@ main() {
     mam4xx_pass=$?
     if [[ $mam4xx_pass -eq 1 ]]; then
       echo "MAM4xx run FAILED. Stopping..."
-      exit
+      exit 1
     fi
     
     #Grab MAM4xx timing data
@@ -100,7 +100,7 @@ main() {
     eamxx_pass=$?
     if [[ $eamxx_pass -eq 1 ]]; then
       echo "EAMxx run FAILED. Stopping..."
-      exit
+      exit 1
     fi
 
     cd $temp_dir/$eamxx_dir/timing
