@@ -22,6 +22,8 @@ main() {
 
     #directory for all the past and current data
     data_dest="/qfs/projects/eagles/litz372/performance_data/${simulation_length}"
+    #TODO: CHANGE PATH
+    #data_dest="/compyfs/litz372/performance_data/${simulation_length}"
 
     #path where the latest time series plot is saved, accessible to the whole project
     share_dest="/compyfs/www/litz372/performance_data"
