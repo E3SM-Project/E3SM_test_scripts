@@ -65,7 +65,8 @@ main() {
 
     module unload python
     module load python/miniconda4.12.0
-    /compyfs/litz372/e3sm_scratch/compare_model_performance/E3SM_test_scripts/jenkins/compy_model_performance.sh
+    #/compyfs/litz372/e3sm_scratch/compare_model_performance/E3SM_test_scripts/jenkins/compy_model_performance.sh
+    /compyfs/litz372/e3sm_scratch/performance_testing/E3SM_test_scripts/jenkins/compy_model_performance.sh
 
     #---------------------------------------------------------------
     # APPEND LINE GRAPHS TO BREAKDOWN 
@@ -77,8 +78,8 @@ main() {
     echo $share_url_ne4 
     echo $share_url_ne30
     echo $output_graph
-    python3 /compyfs/litz372/e3sm_scratch/compare_model_performance/E3SM_test_scripts/jenkins/mam4xx_append_plot.py -i ${share_url_ne4} -o ${output_graph} 
-    python3 /compyfs/litz372/e3sm_scratch/compare_model_performance/E3SM_test_scripts/jenkins/mam4xx_append_plot.py -i ${share_url_ne30} -o ${output_graph} 
+    python3 /compyfs/litz372/e3sm_scratch/performance_testing/E3SM_test_scripts/jenkins/mam4xx_append_plot.py -i ${share_url_ne4} -o ${output_graph} 
+    python3 /compyfs/litz372/e3sm_scratch/performance_testing/E3SM_test_scripts/jenkins/mam4xx_append_plot.py -i ${share_url_ne30} -o ${output_graph} 
 
 }
 
