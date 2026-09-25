@@ -29,13 +29,24 @@ main() {
     machine=compy
     compiler=intel
     project=e3sm 
-    workdir=/compyfs/litz372/e3sm_scratch/compare_model_performance 
+    #workdir=/compyfs/litz372/e3sm_scratch/performance_testing/compare_performance 
+    workdir=/compyfs/litz372/e3sm_scratch/performance_testing/perf_test 
     plotdir=/compyfs/www/litz372/compare_performance
     html_address=https://compy-dtn.pnl.gov/litz372/compare_performance  
     source /etc/profile.d/modules.sh
-    module load python/miniconda4.12.0 
-    source /share/apps/python/miniconda4.12.0/etc/profile.d/conda.sh
-    source ${workdir}/venv/bin/activate
+    module load python/3.11.5
+    #module load python/miniconda4.12.0 
+   # source /share/apps/python/miniconda4.12.0/etc/profile.d/conda.sh
+    which python
+    which python3
+    python --version
+    python3 --version
+    source ${workdir}/../.venv/bin/activate
+    #source /compyfs/litz372/e3sm_scratch/compare_model_performance/venv/bin/activate
+    which python
+    which python3
+    python --version
+    python3 --version
 
     if [ ! -d $plotdir ]; then
         mkdir -p $plotdir 
@@ -45,22 +56,33 @@ main() {
 #    resolution=ne4pg2_oQU480 
     resolution=ne30pg2_ne30pg2
     pe=P32
-    runtime=Ln5 
+    runtime=Ld5 
     queue=debug
     wallclock_time=00:05:00
 
     # SMS test run
-    case=SMS_$pe_$runtime.$resolution.$compset.${machine}_$compiler
+    case=SMS_$pe_$runtime.$resolution.$compset.${machine}_$compiler.eamxx-L72
+
+    do_run_case=false
 
     branch1=master
+    datestr=`date +'%m-%d-%Y'`
+    if $do_run_case; then
+      casename1="master_$datestr"
+    else
+      dirname="test_$datestr"
+      echo $datestr
+      echo $dirname
+      echo $workdir
+      #ls $workdir/$dirname*
+      casename1=$(ls -drt $workdir/$dirname* | head -n 1)
+      echo $casename1
+    fi
+    echo $casename1
+    #code_root1=$workdir/E3SM-$casename1 
+    code_root1=/compyfs/litz372/e3sm_scratch/performance_testing/E3SM 
 
-    datestr=`date +'%Y%m%d_%H%M%S'`
-    casename1=master
-
-    code_root1=$workdir/E3SM-$casename1 
-
-    do_fetch_code=true
-    do_run_case=true
+    do_fetch_code=false
 
     # If you only need to tweak the plot, set the plot_str to the date string of the run.
     do_plot=true 
@@ -97,9 +119,18 @@ main() {
         plot_str=$datestr 
     fi
 
-    case_root1=$workdir/$case.${casename1}_${plot_str}  
-
-    python ${workdir}/E3SM_test_scripts/jenkins/mam4xx_compare_model_performance_plot.py \
+    #case_root1=$workdir/$case.${casename1}_${plot_str}  
+    if $do_run_case; then
+      case_root1=${case}
+    else
+      case_root1=${casename1}/${case}
+    fi
+    #case_root1=${casename1}/${case}
+    echo "case_root: $case_root1"
+    #python ${workdir}/../E3SM_test_scripts/jenkins/mam4xx_compare_model_performance_plot.py \
+    #python ${workdir}/../E3SM_test_scripts/jenkins/mam4xx_compare_model_performance_plot_test.py \
+    #python ${workdir}/../E3SM_test_scripts/jenkins/claude-mam4xx_compare_model_performance_plot-2.py \
+    python ${workdir}/../E3SM_test_scripts/jenkins/mam4xx_compare_model_performance_plot.py \
         --case1 $case_root1 --casename1 $casename1 \
         --outdir $plotdir --html $html_address              
 

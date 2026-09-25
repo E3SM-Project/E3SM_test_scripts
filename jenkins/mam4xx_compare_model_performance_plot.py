@@ -27,35 +27,36 @@ html = args.html
 
 def grab_timing(case):
 
-    with open(f'{case}/log.job_stat', 'r') as f:
-        lines = [line.strip() for line in f]
-    jobid = lines[2].split()[0]
-    status = lines[2].split()[5] 
+#    with open(f'{case}/log.job_stat', 'r') as f:
+#        lines = [line.strip() for line in f]
+#    jobid = lines[2].split()[0]
+#    status = lines[2].split()[5] 
 
-    if status == 'COMPLETED':
-        timinglog = glob(f'{case}/timing/e3sm_timing_stats.{jobid}.*')[0]      
-        df = pd.read_csv(timinglog, sep='\s+', header=4)  
-        s1 = df['name'].str.startswith('a:EAMxx::') 
-        s2 = df['name'].str.endswith('::run')
-        df2 = df[s1 & s2][1:][['name', 'walltotal']] 
-        processes = [p for p in df2['name'].str.split('::').str[1]]  
-        proc_new = [p not in ['EAMxx', 'physics', 'mac_aero_mic'] for p in processes]
+#    if status == 'COMPLETED':
+      print(case)
+      timinglog = glob(f'{case}*/timing/e3sm_timing_stats.*')[0]
+      df = pd.read_csv(timinglog, sep='\s+', header=4)  
+      s1 = df['name'].str.startswith('a:EAMxx::') 
+      s2 = df['name'].str.endswith('::run')
+      df2 = df[s1 & s2][1:][['name', 'walltotal']] 
+      processes = [p for p in df2['name'].str.split('::').str[1]]  
+      proc_new = [p not in ['EAMxx', 'physics', 'mac_aero_mic'] for p in processes]
 
-        df3 = df2[proc_new].sort_values('name')
-        processes = [p for p in df3['name'].str.split('::').str[1]] 
-        
-        compset = case.split('/')[-1].split('.')[2] 
-        if compset == 'F2010-EAMxx-MAM4xx': aer_proc = [p.startswith('mam') for p in processes]
-        if compset == 'F2010-SCREAMv1': aer_proc = [p.startswith('spa') for p in processes]
+      df3 = df2[proc_new].sort_values('name')
+      processes = [p for p in df3['name'].str.split('::').str[1]] 
+      
+      compset = case.split('/')[-1].split('.')[2] 
+      if compset == 'F2010-EAMxx-MAM4xx': aer_proc = [p.startswith('mam') for p in processes]
+      if compset == 'F2010-SCREAMv1': aer_proc = [p.startswith('spa') for p in processes]
 
-        dfaer = df3[aer_proc].reset_index(drop=True) 
-        dfeam = df3[~np.array(aer_proc)] 
-        dftmp = pd.DataFrame({'name': 'a:EAMxx::aerosols::run', 'walltotal': dfaer['walltotal'].sum()}, index=[99])
-        dfeam = pd.concat([dfeam, dftmp]).reset_index(drop=True) 
-        return dfeam, dfaer 
-    else:
-        print(f'Run {case} not completed')
-        return None
+      dfaer = df3[aer_proc].reset_index(drop=True) 
+      dfeam = df3[~np.array(aer_proc)] 
+      dftmp = pd.DataFrame({'name': 'a:EAMxx::aerosols::run', 'walltotal': dfaer['walltotal'].sum()}, index=[99])
+      dfeam = pd.concat([dfeam, dftmp]).reset_index(drop=True) 
+      return dfeam, dfaer 
+#    else:
+#        print(f'Run {case} not completed')
+#        return None
 
 
 def plot_mam4_process(dfeam, dfaer, axl, axr):
@@ -157,7 +158,7 @@ def plot_eam_process(dfeam, ax):
     handles = [h for h,r in zip(wedges,eam_ratios) if r < 0.01]
     ax.legend(handles, l, fontsize='small', title='EAMxx process < 1%', title_fontsize='small', 
                 handlelength=0.5, handleheight=0.5, handletextpad=0.5, columnspacing=0.5,
-            #   ncols=2, bbox_to_anchor=(0.5,0.01), loc='lower center', 
+               ncols=2, bbox_to_anchor=(0.5,0.01), loc='lower center', 
             )  
     ax.set_title('EAMxx', fontsize='large')
 
@@ -203,8 +204,11 @@ if t1 is not None:
     # plot mam4 process
     compset = case1.split('/')[-1].split('.')[2] 
     if compset == 'F2010-EAMxx-MAM4xx':
-        fig, axs = plt.subplots(figsize=(10, 4.5), ncols=2, constrained_layout=True)
-        plot_mam4_process(t1, taer1, axs[0], axs[1])
+        fig, axs = plt.subplots(figsize=(10, 4.5), constrained_layout=True)
+        print(axs)
+        axs2 = plt.axes(2, 0.11)
+        print(axs2)
+        plot_mam4_process(t1, taer1, axs, axs2)
         piechart1 = 'process_case1'
         image1 = f"{outdir}/{piechart1}_{now_str}.png" 
         fig.savefig(image1, dpi=300, bbox_inches='tight') 
@@ -247,13 +251,14 @@ for v, img in zip(png_names, png_files):
 # Write the HTML content to a file
 html_file_path = outdir  
 #with open(f'{html_file_path}/compare_{casename1}_vs_{casename2}_{now_str}.html', "w") as html_file:
-with open(f'{html_file_path}/plot_{casename1}_{now_str}.html', "w") as html_file:
+#with open(f'{html_file_path}/plot_{casename1}_{now_str}.html', "w") as html_file:
+with open(f'/compyfs/www/litz372/{now_str}.html', "w") as html_file:
     html_file.write(html_content)
 
 # Display the HTML file path
 #subprocess.run(['ln', '-sf', f'{html_file_path}/compare_{casename1}_vs_{casename2}_{now_str}.html', f'{html_file_path}/plot.html'], check=True)
-subprocess.run(['ln', '-sf', f'{html_file_path}/plot_{casename1}_{now_str}.html', f'{html_file_path}/plot.html'], check=True)
-print(f"HTML file generated: {html}/plot.html") 
+#subprocess.run(['ln', '-sf', f'{html_file_path}/plot_{casename1}_{now_str}.html', f'{html_file_path}/plot.html'], check=True)
+#print(f"HTML file generated: {html}/plot.html") 
 
 
 
