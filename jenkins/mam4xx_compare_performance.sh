@@ -86,13 +86,18 @@ main() {
       echo "MAM4xx run FAILED. Stopping..."
       exit 1
     fi
-    
+   
     #Grab MAM4xx timing data
     cd $temp_dir/$mam4xx_dir/timing
     mam4xx_throughput=$(grep Throughput e3sm_timing.* | grep -oP '\d+\.\d+')
     echo "EAMxx+MAM4xx Throughput - ${mam4xx_throughput}"
     mam4xx_cost=$(grep "Model Cost" e3sm_timing.* | grep -oP '\d+\.\d+')
     echo "EAMxx+MAM4xx Model Cost - ${mam4xx_cost}"
+    mam4xx_atm_results=($(grep "ATM Run Time" e3sm_timing.* | grep -oP '\d+\.\d+'))
+    # Access them by index
+    mam4xx_run_time=${mam4xx_atm_results[0]}    
+    mam4xx_sec_mday=${mam4xx_atm_results[1]}    
+    mam4xx_myears_wday=${mam4xx_atm_results[2]}  
 
     #check if the EAMxx test completed
     eamxx_dir=${testname}.${resolution}.${compset_eamxx}.${mach}_${compiler}.${test_mod}.master_${date_str}
@@ -110,6 +115,11 @@ main() {
     echo "EAMxx Throughput - ${eamxx_throughput}"
     eamxx_cost=$(grep "Model Cost" e3sm_timing.* | grep -oP '\d+\.\d+')
     echo "EAMxx Model Cost - ${eamxx_cost}"
+    eamxx_atm_results=($(grep "ATM Run Time" e3sm_timing.* | grep -oP '\d+\.\d+'))
+    # Access them by index
+    eamxx_run_time=${eamxx_atm_results[0]}    
+    eamxx_sec_mday=${eamxx_atm_results[1]}    
+    eamxx_myears_wday=${eamxx_atm_results[2]} 
 
     #save data in a csv file
     cd $data_dest
