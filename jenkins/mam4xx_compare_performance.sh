@@ -126,9 +126,13 @@ main() {
     DATE=$(date +'%Y-%m-%d')
     echo "${DATE},${mam4xx_throughput},${mam4xx_cost}" >> mam4xx_performance_${resolution}.csv
     echo "${DATE},${eamxx_throughput},${eamxx_cost}" >> eamxx_performance_${resolution}.csv
+    echo "${DATE},${mam4xx_run_time},${mam4xx_sec_mday},${mam4xx_myears_wday}" >> mam4xx_atm_time_${resolution}.csv
+    echo "${DATE},${eamxx_run_time},${eamxx_sec_mday},${eamxx_myears_wday}" >> eamxx_atm_time_${resolution}.csv
     echo "data saved at $(pwd)"
-    cat mam4xx_performance_${resolution}.csv
-    cat eamxx_performance_${resolution}.csv
+    tail mam4xx_performance_${resolution}.csv
+    tail eamxx_performance_${resolution}.csv
+    tail mam4xx_atm_time.csv
+    tail eamxx_atm_time.csv
 
     # do the plotting
     if [ "$mach" = "pm-gpu" ]; then
