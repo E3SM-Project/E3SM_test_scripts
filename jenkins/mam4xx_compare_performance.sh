@@ -122,12 +122,11 @@ main() {
 
     # do the plotting
     if [ "$mach" = "pm-gpu" ]; then
-      cd /global/cfs/projectdirs/e3sm/litzingj
+      source /global/cfs/projectdirs/e3sm/litzingj/.venv/bin/activate
     elif [ "$mach" = "compy" ]; then
-      cd ${parent_dir}
+      source ${parent_dir}/.venv/bin/activate
     fi
-    source .venv/bin/activate
-    cd E3SM_test_scripts/jenkins
+    cd ${parent_dir}/E3SM_test_scripts/jenkins
     python3 mam4xx_plot_compare_performance.py -r $resolution -m $mach -e $compset_eamxx -x $compset_mam4xx -d $data_dest -t $simulation_length
 
     #copy plot to www dir
