@@ -990,6 +990,119 @@ class TestTransitionIssue(unittest.TestCase):
         self.assertIsNone(result)
         self.assertEqual(mock_post.call_count, 2)
 
+    def test_required_resolution_auto_filled(self):
+        """A required resolution field should be auto-populated in the POST."""
+        transitions = {"transitions": [{
+            "name": "Resolve This Issue", "id": "801",
+            "fields": {
+                "resolution": {
+                    "required": True,
+                    "allowedValues": [
+                        {"id": "10000", "name": "Done"},
+                        {"id": "10001", "name": "Won't Do"},
+                    ],
+                },
+            },
+        }]}
+        with patch.object(jbp, "_jira_get", return_value=transitions), \
+             patch.object(jbp, "_jira_post", return_value={}) as mock_post:
+            result = jbp.transition_issue({}, "SES-1", ["resolve this issue"])
+        self.assertEqual(result, "resolve this issue")
+        payload = mock_post.call_args[0][2]
+        self.assertEqual(payload["fields"]["resolution"], {"id": "10000"})
+
+    def test_required_resolution_prefers_done(self):
+        """When multiple resolutions are allowed, prefer Done/Fixed/etc."""
+        transitions = {"transitions": [{
+            "name": "Resolve This Issue", "id": "801",
+            "fields": {
+                "resolution": {
+                    "required": True,
+                    "allowedValues": [
+                        {"id": "5", "name": "Cannot Reproduce"},
+                        {"id": "6", "name": "Fixed"},
+                    ],
+                },
+            },
+        }]}
+        with patch.object(jbp, "_jira_get", return_value=transitions), \
+             patch.object(jbp, "_jira_post", return_value={}) as mock_post:
+            jbp.transition_issue({}, "SES-1", ["resolve this issue"])
+        payload = mock_post.call_args[0][2]
+        self.assertEqual(payload["fields"]["resolution"], {"id": "6"})
+
+    def test_optional_fields_not_included(self):
+        """Non-required fields should not be added to the payload."""
+        transitions = {"transitions": [{
+            "name": "Done", "id": "41",
+            "fields": {
+                "assignee": {"required": False, "allowedValues": []},
+            },
+        }]}
+        with patch.object(jbp, "_jira_get", return_value=transitions), \
+             patch.object(jbp, "_jira_post", return_value={}) as mock_post:
+            jbp.transition_issue({}, "SES-1", ["done"])
+        payload = mock_post.call_args[0][2]
+        self.assertNotIn("fields", payload)
+
+    def test_required_field_no_allowed_values_warned(self):
+        """Required field with no allowed values is left out (POST still attempted)."""
+        transitions = {"transitions": [{
+            "name": "Done", "id": "41",
+            "fields": {
+                "customfield_123": {"required": True, "allowedValues": []},
+            },
+        }]}
+        with patch.object(jbp, "_jira_get", return_value=transitions), \
+             patch.object(jbp, "_jira_post", return_value={}) as mock_post:
+            result = jbp.transition_issue({}, "SES-1", ["done"])
+        self.assertEqual(result, "done")
+        payload = mock_post.call_args[0][2]
+        self.assertNotIn("fields", payload)
+
+    def test_transitions_fetched_with_fields_expand(self):
+        """transition_issue should request expand=transitions.fields."""
+        transitions = {"transitions": [{"name": "Done", "id": "41"}]}
+        with patch.object(jbp, "_jira_get", return_value=transitions) as mock_get, \
+             patch.object(jbp, "_jira_post", return_value={}):
+            jbp.transition_issue({}, "SES-1", ["done"])
+        # Verify expand param was passed
+        _, kwargs = mock_get.call_args
+        self.assertEqual(kwargs.get("params"), {"expand": "transitions.fields"})
+
+
+###############################################################################
+class TestBuildTransitionFields(unittest.TestCase):
+###############################################################################
+    """Tests for _build_transition_fields helper."""
+
+    def test_no_fields_returns_empty(self):
+        self.assertEqual(jbp._build_transition_fields("SES-1", {}, "resolve"), {})
+
+    def test_required_select_by_name(self):
+        transition = {"fields": {
+            "resolution": {"required": True,
+                           "allowedValues": [{"name": "Done"}]},
+        }}
+        out = jbp._build_transition_fields("SES-1", transition, "resolve")
+        self.assertEqual(out["resolution"], {"name": "Done"})
+
+    def test_required_select_by_value(self):
+        transition = {"fields": {
+            "customfield_1": {"required": True,
+                              "allowedValues": [{"value": "OptionA"}]},
+        }}
+        out = jbp._build_transition_fields("SES-1", transition, "resolve")
+        self.assertEqual(out["customfield_1"], {"value": "OptionA"})
+
+    def test_has_default_value_skipped(self):
+        transition = {"fields": {
+            "priority": {"required": True, "allowedValues": [],
+                         "hasDefaultValue": True},
+        }}
+        out = jbp._build_transition_fields("SES-1", transition, "resolve")
+        self.assertNotIn("priority", out)
+
 
 ###############################################################################
 class TestHttpRetry(unittest.TestCase):

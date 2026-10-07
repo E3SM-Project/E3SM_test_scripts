@@ -281,36 +281,95 @@ def add_comment(headers, issue_key, text):
             })
 
 ###############################################################################
+# Preferred resolution names, in priority order, when a transition requires a
+# resolution field and offers a choice.
+PREFERRED_RESOLUTIONS = ["done", "fixed", "resolved", "completed"]
+###############################################################################
+def _build_transition_fields(issue_key, transition, label):
+###############################################################################
+    """
+    Given a transition dict (from the transitions API expanded with
+    transitions.fields), build a 'fields' payload that satisfies any required
+    fields on the transition screen.
+
+    Required fields with allowedValues (e.g. resolution) are auto-populated,
+    preferring sensible defaults. Required fields that cannot be auto-filled are
+    warned about but left out (the POST will likely fail, surfacing the issue).
+
+    Returns a dict suitable for the "fields" key of a transition POST (may be empty).
+    """
+    fields_meta = transition.get("fields", {}) or {}
+    out = {}
+    for field_id, meta in fields_meta.items():
+        if not meta.get("required"):
+            continue
+        allowed = meta.get("allowedValues") or []
+        if allowed:
+            choice = None
+            # For resolution-like fields, prefer a sensible default by name.
+            names = {(v.get("name") or v.get("value") or "").lower(): v for v in allowed}
+            for pref in PREFERRED_RESOLUTIONS:
+                if pref in names:
+                    choice = names[pref]
+                    break
+            if choice is None:
+                choice = allowed[0]
+            if "id" in choice:
+                out[field_id] = {"id": choice["id"]}
+            elif "name" in choice:
+                out[field_id] = {"name": choice["name"]}
+            elif "value" in choice:
+                out[field_id] = {"value": choice["value"]}
+            else:
+                out[field_id] = choice
+        elif meta.get("hasDefaultValue"):
+            # Jira will apply the default; nothing to send.
+            continue
+        else:
+            print(f"  [{issue_key}] WARNING: {label} transition requires field "
+                  f"{field_id!r} but it has no allowed values to auto-fill.")
+    return out
+
+###############################################################################
 def transition_issue(headers, issue_key, transition_names, label="transition"):
 ###############################################################################
     """
     Try each name in transition_names against the ticket's available transitions.
     Returns the matched name on success, or None if no match was found.
 
+    Required fields on the transition screen (e.g. 'resolution') are discovered
+    via expand=transitions.fields and auto-populated before posting.
+
     If Jira rejects a transition (e.g. "Action NNN is invalid" from workflow
     conditions/validators), fall through to the next matching name rather than
     raising. Transient failures (5xx, network errors) are retried inside _http.
     """
-    data       = _jira_get(f"/rest/api/3/issue/{issue_key}/transitions", headers)
-    name_to_id = {t["name"].lower(): t["id"] for t in data.get("transitions", [])}
+    data = _jira_get(f"/rest/api/3/issue/{issue_key}/transitions", headers,
+                     params={"expand": "transitions.fields"})
+    name_to_transition = {t["name"].lower(): t for t in data.get("transitions", [])}
     attempted = []
     for name in transition_names:
-        if name in name_to_id:
+        if name in name_to_transition:
             attempted.append(name)
+            transition = name_to_transition[name]
+            tid        = transition["id"]
+            payload    = {"transition": {"id": tid}}
+            fields     = _build_transition_fields(issue_key, transition, label)
+            if fields:
+                payload["fields"] = fields
             try:
-                _jira_post(f"/rest/api/3/issue/{issue_key}/transitions", headers,
-                           {"transition": {"id": name_to_id[name]}})
+                _jira_post(f"/rest/api/3/issue/{issue_key}/transitions", headers, payload)
                 return name
             except RuntimeError as exc:
                 print(f"  [{issue_key}] WARNING: {label} transition {name!r} "
-                      f"(id={name_to_id[name]}) rejected by Jira: {exc}")
+                      f"(id={tid}) rejected by Jira: {exc}")
                 continue
     if attempted:
         print(f"  [{issue_key}] WARNING: no {label} transition succeeded. "
-              f"Attempted: {attempted}. Available: {list(name_to_id.keys())}")
+              f"Attempted: {attempted}. Available: {list(name_to_transition.keys())}")
     else:
         print(f"  [{issue_key}] WARNING: no {label} transition found. "
-              f"Available: {list(name_to_id.keys())}")
+              f"Available: {list(name_to_transition.keys())}")
     return None
 
 ###############################################################################
