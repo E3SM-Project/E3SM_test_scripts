@@ -675,6 +675,24 @@ def dump_transitions(email, token, ticket_id):
     except RuntimeError as exc:
         print(f"  WARNING: could not fetch issue status: {exc}")
 
+    # Server-authoritative check: does THIS account actually hold the
+    # permissions needed to transition/resolve this issue? This distinguishes a
+    # permission gap (fix: Jira admin grants the permission) from a workflow
+    # validator rejecting an otherwise-permitted transition.
+    perm_keys = ["TRANSITION_ISSUES", "RESOLVE_ISSUES", "CLOSE_ISSUES",
+                 "EDIT_ISSUES"]
+    print("  Permissions:")
+    try:
+        perms = _jira_get("/rest/api/3/mypermissions", headers,
+                          params={"issueKey": ticket_id,
+                                  "permissions": ",".join(perm_keys)})
+        granted = perms.get("permissions", {})
+        for key in perm_keys:
+            have = granted.get(key, {}).get("havePermission")
+            print(f"    {key:<18}: {have}")
+    except RuntimeError as exc:
+        print(f"    WARNING: could not fetch permissions: {exc}")
+
     data = _jira_get(f"/rest/api/3/issue/{ticket_id}/transitions", headers,
                      params={"expand": "transitions.fields"})
     print(json.dumps(data, indent=2))
