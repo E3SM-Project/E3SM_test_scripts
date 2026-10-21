@@ -1125,6 +1125,43 @@ class TestTransitionIssue(unittest.TestCase):
         payload = mock_post.call_args[0][2]
         self.assertEqual(payload["fields"]["resolution"], {"id": "6"})
 
+    def test_real_ses4385_resolve_payload(self):
+        """Regression: the real SES-4385 'Resolve this issue' metadata should
+        yield a POST that sets resolution to Done (id 10000)."""
+        transitions = {"transitions": [
+            {
+                "id": "801", "name": "Resolve this issue", "hasScreen": True,
+                "fields": {
+                    "issuelinks": {"required": False, "name": "Linked Issues"},
+                    "resolution": {
+                        "required": True, "name": "Resolution", "key": "resolution",
+                        "operations": ["set"],
+                        "allowedValues": [
+                            {"self": "x", "id": "10000", "name": "Done"},
+                            {"self": "x", "id": "10100", "name": "Won't Do"},
+                            {"self": "x", "id": "1",     "name": "Fixed"},
+                            {"self": "x", "id": "2",     "name": "Won't Fix"},
+                            {"self": "x", "id": "3",     "name": "Duplicate"},
+                            {"self": "x", "id": "4",     "name": "Incomplete"},
+                            {"self": "x", "id": "5",     "name": "Cannot Reproduce"},
+                            {"self": "x", "id": "10200", "name": "Declined"},
+                        ],
+                    },
+                },
+            },
+            {"id": "851", "name": "Respond to customer", "fields": {}},
+        ]}
+        with patch.object(jbp, "_jira_get", return_value=transitions), \
+             patch.object(jbp, "_jira_post", return_value={}) as mock_post:
+            result = jbp.transition_issue({}, "SES-4385",
+                                          jbp.RESOLVE_TRANSITION_NAMES, label="resolve")
+        self.assertEqual(result, "resolve this issue")
+        # Only one POST needed; resolution supplied from metadata, no fallback.
+        self.assertEqual(mock_post.call_count, 1)
+        payload = mock_post.call_args[0][2]
+        self.assertEqual(payload["transition"]["id"], "801")
+        self.assertEqual(payload["fields"]["resolution"], {"id": "10000"})
+
     def test_optional_fields_not_included(self):
         """Non-required fields should not be added to the payload."""
         transitions = {"transitions": [{
