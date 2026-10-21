@@ -331,6 +331,31 @@ def _build_transition_fields(issue_key, transition, label):
     return out
 
 ###############################################################################
+def _pick_resolution(headers):
+###############################################################################
+    """
+    Fetch the Jira instance's resolutions and return a {"name": ...} dict for
+    the most preferred one (per PREFERRED_RESOLUTIONS), or None if none exist.
+
+    Used as a fallback when a transition requires a resolution but the field is
+    not advertised in the transition screen metadata (a common Jira quirk where
+    a workflow validator requires resolution without exposing it on a screen).
+    """
+    try:
+        resolutions = _jira_get("/rest/api/3/resolution", headers)
+    except RuntimeError as exc:
+        print(f"  WARNING: could not fetch resolutions: {exc}")
+        return None
+    by_name = {(r.get("name") or "").lower(): r.get("name") for r in resolutions}
+    for pref in PREFERRED_RESOLUTIONS:
+        if pref in by_name:
+            return {"name": by_name[pref]}
+    # Fall back to the first resolution offered by the instance.
+    if resolutions:
+        return {"name": resolutions[0].get("name")}
+    return None
+
+###############################################################################
 def transition_issue(headers, issue_key, transition_names, label="transition"):
 ###############################################################################
     """
@@ -338,7 +363,10 @@ def transition_issue(headers, issue_key, transition_names, label="transition"):
     Returns the matched name on success, or None if no match was found.
 
     Required fields on the transition screen (e.g. 'resolution') are discovered
-    via expand=transitions.fields and auto-populated before posting.
+    via expand=transitions.fields and auto-populated before posting. If a POST
+    fails and we did not send a resolution, retry that transition once with a
+    resolution set, since workflow validators often require resolution without
+    advertising it in the screen metadata.
 
     If Jira rejects a transition (e.g. "Action NNN is invalid" from workflow
     conditions/validators), fall through to the next matching name rather than
@@ -353,14 +381,33 @@ def transition_issue(headers, issue_key, transition_names, label="transition"):
             attempted.append(name)
             transition = name_to_transition[name]
             tid        = transition["id"]
-            payload    = {"transition": {"id": tid}}
             fields     = _build_transition_fields(issue_key, transition, label)
+            payload    = {"transition": {"id": tid}}
             if fields:
                 payload["fields"] = fields
+
             try:
                 _jira_post(f"/rest/api/3/issue/{issue_key}/transitions", headers, payload)
                 return name
             except RuntimeError as exc:
+                # Fallback: if we didn't send a resolution, the workflow may
+                # require one without advertising it. Retry once with a resolution.
+                if "resolution" not in fields:
+                    resolution = _pick_resolution(headers)
+                    if resolution is not None:
+                        retry_fields = dict(fields)
+                        retry_fields["resolution"] = resolution
+                        retry_payload = {"transition": {"id": tid}, "fields": retry_fields}
+                        print(f"  [{issue_key}] {label} transition {name!r} failed; "
+                              f"retrying with resolution={resolution['name']!r}.")
+                        try:
+                            _jira_post(f"/rest/api/3/issue/{issue_key}/transitions",
+                                       headers, retry_payload)
+                            return name
+                        except RuntimeError as exc2:
+                            print(f"  [{issue_key}] WARNING: {label} transition {name!r} "
+                                  f"(id={tid}) still rejected with resolution: {exc2}")
+                            continue
                 print(f"  [{issue_key}] WARNING: {label} transition {name!r} "
                       f"(id={tid}) rejected by Jira: {exc}")
                 continue

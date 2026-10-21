@@ -970,6 +970,7 @@ class TestTransitionIssue(unittest.TestCase):
             {},
         ]
         with patch.object(jbp, "_jira_get", return_value=transitions), \
+             patch.object(jbp, "_pick_resolution", return_value=None), \
              patch.object(jbp, "_jira_post", side_effect=post_side_effects) as mock_post:
             result = jbp.transition_issue({}, "SES-1",
                                           ["resolve this issue", "done"])
@@ -983,12 +984,70 @@ class TestTransitionIssue(unittest.TestCase):
             {"name": "Done",               "id": "41"},
         ]}
         with patch.object(jbp, "_jira_get", return_value=transitions), \
+             patch.object(jbp, "_pick_resolution", return_value=None), \
              patch.object(jbp, "_jira_post",
                           side_effect=RuntimeError("Action 801 is invalid")) as mock_post:
             result = jbp.transition_issue({}, "SES-1",
                                           ["resolve this issue", "done"])
         self.assertIsNone(result)
         self.assertEqual(mock_post.call_count, 2)
+
+    def test_resolution_fallback_on_failure(self):
+        """If a transition fails without a resolution, retry with a resolution.
+
+        Reproduces SES-4385: metadata doesn't advertise the required resolution
+        field, so the first POST fails; the fallback adds a resolution and the
+        retry succeeds.
+        """
+        transitions = {"transitions": [{"name": "Resolve This Issue", "id": "801"}]}
+        # First POST fails (missing resolution), second POST (with resolution) succeeds
+        post_side_effects = [
+            RuntimeError("HTTP 400: missing required information"),
+            {},
+        ]
+        with patch.object(jbp, "_jira_get", return_value=transitions), \
+             patch.object(jbp, "_pick_resolution", return_value={"name": "Done"}), \
+             patch.object(jbp, "_jira_post", side_effect=post_side_effects) as mock_post:
+            result = jbp.transition_issue({}, "SES-4385", ["resolve this issue"],
+                                          label="resolve")
+        self.assertEqual(result, "resolve this issue")
+        self.assertEqual(mock_post.call_count, 2)
+        # Second POST should include the resolution
+        retry_payload = mock_post.call_args_list[1][0][2]
+        self.assertEqual(retry_payload["fields"]["resolution"], {"name": "Done"})
+
+    def test_resolution_fallback_both_fail(self):
+        """If even the resolution retry fails, fall through to next/none."""
+        transitions = {"transitions": [{"name": "Resolve This Issue", "id": "801"}]}
+        with patch.object(jbp, "_jira_get", return_value=transitions), \
+             patch.object(jbp, "_pick_resolution", return_value={"name": "Done"}), \
+             patch.object(jbp, "_jira_post",
+                          side_effect=RuntimeError("nope")) as mock_post:
+            result = jbp.transition_issue({}, "SES-1", ["resolve this issue"])
+        self.assertIsNone(result)
+        # original attempt + resolution retry = 2 POSTs
+        self.assertEqual(mock_post.call_count, 2)
+
+    def test_resolution_fallback_skipped_when_already_sent(self):
+        """If metadata already supplied a resolution, don't do the fallback."""
+        transitions = {"transitions": [{
+            "name": "Resolve This Issue", "id": "801",
+            "fields": {
+                "resolution": {
+                    "required": True,
+                    "allowedValues": [{"id": "1", "name": "Done"}],
+                },
+            },
+        }]}
+        with patch.object(jbp, "_jira_get", return_value=transitions), \
+             patch.object(jbp, "_pick_resolution") as mock_pick, \
+             patch.object(jbp, "_jira_post",
+                          side_effect=RuntimeError("some other error")) as mock_post:
+            result = jbp.transition_issue({}, "SES-1", ["resolve this issue"])
+        self.assertIsNone(result)
+        # resolution already in fields, so no fallback fetch, only 1 POST
+        mock_pick.assert_not_called()
+        self.assertEqual(mock_post.call_count, 1)
 
     def test_required_resolution_auto_filled(self):
         """A required resolution field should be auto-populated in the POST."""
@@ -1102,6 +1161,41 @@ class TestBuildTransitionFields(unittest.TestCase):
         }}
         out = jbp._build_transition_fields("SES-1", transition, "resolve")
         self.assertNotIn("priority", out)
+
+
+###############################################################################
+class TestPickResolution(unittest.TestCase):
+###############################################################################
+    """Tests for the _pick_resolution fallback helper."""
+
+    def test_prefers_done(self):
+        resolutions = [
+            {"id": "1", "name": "Won't Do"},
+            {"id": "2", "name": "Done"},
+        ]
+        with patch.object(jbp, "_jira_get", return_value=resolutions):
+            self.assertEqual(jbp._pick_resolution({}), {"name": "Done"})
+
+    def test_prefers_fixed_over_first(self):
+        resolutions = [
+            {"id": "1", "name": "Cannot Reproduce"},
+            {"id": "2", "name": "Fixed"},
+        ]
+        with patch.object(jbp, "_jira_get", return_value=resolutions):
+            self.assertEqual(jbp._pick_resolution({}), {"name": "Fixed"})
+
+    def test_falls_back_to_first(self):
+        resolutions = [{"id": "1", "name": "Custom"}]
+        with patch.object(jbp, "_jira_get", return_value=resolutions):
+            self.assertEqual(jbp._pick_resolution({}), {"name": "Custom"})
+
+    def test_empty_returns_none(self):
+        with patch.object(jbp, "_jira_get", return_value=[]):
+            self.assertIsNone(jbp._pick_resolution({}))
+
+    def test_fetch_failure_returns_none(self):
+        with patch.object(jbp, "_jira_get", side_effect=RuntimeError("boom")):
+            self.assertIsNone(jbp._pick_resolution({}))
 
 
 ###############################################################################
