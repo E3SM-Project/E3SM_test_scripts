@@ -617,6 +617,31 @@ def close_ticket(email, token, ticket_id, comment_text=None, no_transition=False
         return False
 
 ###############################################################################
+def dump_transitions(email, token, ticket_id):
+###############################################################################
+    """
+    Diagnostic: print the raw transitions metadata (with required-field info)
+    and the instance resolutions for a ticket, so we can see exactly what a
+    transition requires. Returns True on success.
+    """
+    token     = _resolve_token(token)
+    headers   = _auth_headers(email, token)
+    ticket_id = ticket_id.upper()
+
+    print(f"Dumping transition metadata for {ticket_id} ...")
+    data = _jira_get(f"/rest/api/3/issue/{ticket_id}/transitions", headers,
+                     params={"expand": "transitions.fields"})
+    print(json.dumps(data, indent=2))
+
+    print("\nInstance resolutions:")
+    try:
+        resolutions = _jira_get("/rest/api/3/resolution", headers)
+        print(json.dumps(resolutions, indent=2))
+    except RuntimeError as exc:
+        print(f"  WARNING: could not fetch resolutions: {exc}")
+    return True
+
+###############################################################################
 def test_connection(email, token):
 ###############################################################################
     """
@@ -973,6 +998,14 @@ OR
         help="Test authentication and confirm all required Jira fields are reachable, then exit.",
     )
 
+    parser.add_argument(
+        "--dump-transitions",
+        default=None,
+        metavar="TICKET_ID",
+        help="Diagnostic: print the raw transition metadata (required fields, "
+             "allowed values) and instance resolutions for a ticket, then exit.",
+    )
+
     return parser.parse_args(args[1:])
 
 ###############################################################################
@@ -988,6 +1021,8 @@ def _main_func(description):
 
     if args.test_connection:
         success = test_connection(args.email, args.token)
+    elif args.dump_transitions:
+        success = dump_transitions(args.email, args.token, args.dump_transitions)
     elif args.close_ticket:
         success = close_ticket(args.email, args.token, args.close_ticket,
                               comment_text=args.comment, no_transition=args.no_transition)
@@ -1008,7 +1043,8 @@ def _main_func(description):
                                      bless_dry_run=args.bless_dry_run, root=args.root)
         else:
             success = poll_jira_bless(**{k: v for k, v in vars(args).items()
-                                         if k not in ("test_connection", "user", "action", "close_ticket", "comment")})
+                                         if k not in ("test_connection", "user", "action",
+                                                      "close_ticket", "comment", "dump_transitions")})
     sys.exit(0 if success else 1)
 
 ###############################################################################

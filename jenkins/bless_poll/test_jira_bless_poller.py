@@ -46,6 +46,7 @@ def _make_parsed_args(**overrides):
         root=None, dry_run=False, bless_dry_run=False,
         tickets=None, test_connection=False, user=None, action=None,
         no_transition=False, close_ticket=None, comment=None,
+        dump_transitions=None,
     )
     defaults.update(overrides)
     return argparse.Namespace(**defaults)
@@ -935,6 +936,40 @@ class TestCloseTicket(unittest.TestCase):
              patch.object(jbp, "transition_issue", return_value="resolved"), \
              patch("sys.exit") as mock_exit:
             jbp._main_func("test")
+        mock_exit.assert_called_with(0)
+
+###############################################################################
+class TestDumpTransitions(unittest.TestCase):
+###############################################################################
+    """Tests for the --dump-transitions diagnostic mode."""
+
+    def test_dump_fetches_transitions_and_resolutions(self):
+        transitions = {"transitions": [{"name": "Done", "id": "41"}]}
+        resolutions = [{"id": "1", "name": "Done"}]
+        get_returns = [transitions, resolutions]
+        with patch.object(jbp, "_jira_get", side_effect=get_returns) as mock_get:
+            success = jbp.dump_transitions("e@e.com", "tok", "ses-42")
+        self.assertTrue(success)
+        # First GET is transitions with expand, second is resolutions
+        first_call = mock_get.call_args_list[0]
+        self.assertIn("SES-42", first_call[0][0])
+        self.assertEqual(first_call[1].get("params"), {"expand": "transitions.fields"})
+        self.assertIn("/resolution", mock_get.call_args_list[1][0][0])
+
+    def test_dump_handles_resolution_fetch_failure(self):
+        transitions = {"transitions": []}
+        with patch.object(jbp, "_jira_get",
+                          side_effect=[transitions, RuntimeError("boom")]):
+            success = jbp.dump_transitions("e@e.com", "tok", "SES-42")
+        self.assertTrue(success)
+
+    def test_dump_main_func_mode(self):
+        args = _make_parsed_args(dump_transitions="SES-4385", email="e@e.com", token="tok")
+        with patch.object(jbp, "parse_command_line", return_value=args), \
+             patch.object(jbp, "dump_transitions", return_value=True) as mock_dump, \
+             patch("sys.exit") as mock_exit:
+            jbp._main_func("test")
+        mock_dump.assert_called_once()
         mock_exit.assert_called_with(0)
 
 ###############################################################################
