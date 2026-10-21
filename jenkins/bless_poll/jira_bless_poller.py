@@ -356,6 +356,25 @@ def _pick_resolution(headers):
     return None
 
 ###############################################################################
+def _try_transition_payloads(issue_key, headers, name, tid, attempts, label):
+###############################################################################
+    """
+    POST each (description, payload) in attempts to the transitions endpoint,
+    returning True on the first success. Each rejection is logged and the next
+    variant is tried. Returns False if every variant is rejected.
+    """
+    for desc, payload in attempts:
+        try:
+            print(f"  [{issue_key}] Attempting {label} transition {name!r} "
+                  f"(id={tid}) via {desc} with payload: {json.dumps(payload)}")
+            _jira_post(f"/rest/api/3/issue/{issue_key}/transitions", headers, payload)
+            return True
+        except RuntimeError as exc:
+            print(f"  [{issue_key}] WARNING: {label} transition {name!r} "
+                  f"(id={tid}) via {desc} rejected by Jira: {exc}")
+    return False
+
+###############################################################################
 def transition_issue(headers, issue_key, transition_names, label="transition"):
 ###############################################################################
     """
@@ -363,10 +382,13 @@ def transition_issue(headers, issue_key, transition_names, label="transition"):
     Returns the matched name on success, or None if no match was found.
 
     Required fields on the transition screen (e.g. 'resolution') are discovered
-    via expand=transitions.fields and auto-populated before posting. If a POST
-    fails and we did not send a resolution, retry that transition once with a
-    resolution set, since workflow validators often require resolution without
-    advertising it in the screen metadata.
+    via expand=transitions.fields and auto-populated before posting. Each
+    transition is attempted first with the standard 'fields' form and then, when
+    a resolution is present, with the 'update'/SET form that mirrors what the
+    Jira web UI sends (some team-managed JSM projects accept the latter when the
+    former is rejected). If a transition still fails and we did not send a
+    resolution, we retry with a resolution discovered from the instance, since
+    workflow validators sometimes require resolution without advertising it.
 
     If Jira rejects a transition (e.g. "Action NNN is invalid" from workflow
     conditions/validators), fall through to the next matching name rather than
@@ -377,42 +399,52 @@ def transition_issue(headers, issue_key, transition_names, label="transition"):
     name_to_transition = {t["name"].lower(): t for t in data.get("transitions", [])}
     attempted = []
     for name in transition_names:
-        if name in name_to_transition:
-            attempted.append(name)
-            transition = name_to_transition[name]
-            tid        = transition["id"]
-            fields     = _build_transition_fields(issue_key, transition, label)
-            payload    = {"transition": {"id": tid}}
-            if fields:
-                payload["fields"] = fields
+        if name not in name_to_transition:
+            continue
+        attempted.append(name)
+        transition = name_to_transition[name]
+        tid        = transition["id"]
+        fields     = _build_transition_fields(issue_key, transition, label)
+        base       = {"transition": {"id": tid}}
 
-            try:
-                print(f"  [{issue_key}] Attempting {label} transition {name!r} "
-                      f"(id={tid}) with payload: {json.dumps(payload)}")
-                _jira_post(f"/rest/api/3/issue/{issue_key}/transitions", headers, payload)
-                return name
-            except RuntimeError as exc:
-                # Fallback: if we didn't send a resolution, the workflow may
-                # require one without advertising it. Retry once with a resolution.
-                if "resolution" not in fields:
-                    resolution = _pick_resolution(headers)
-                    if resolution is not None:
-                        retry_fields = dict(fields)
-                        retry_fields["resolution"] = resolution
-                        retry_payload = {"transition": {"id": tid}, "fields": retry_fields}
-                        print(f"  [{issue_key}] {label} transition {name!r} failed; "
-                              f"retrying with resolution={resolution['name']!r}.")
-                        try:
-                            _jira_post(f"/rest/api/3/issue/{issue_key}/transitions",
-                                       headers, retry_payload)
-                            return name
-                        except RuntimeError as exc2:
-                            print(f"  [{issue_key}] WARNING: {label} transition {name!r} "
-                                  f"(id={tid}) still rejected with resolution: {exc2}")
-                            continue
-                print(f"  [{issue_key}] WARNING: {label} transition {name!r} "
-                      f"(id={tid}) rejected by Jira: {exc}")
-                continue
+        # Primary attempts: the standard 'fields' form, then the UI-mirroring
+        # 'update'/SET form when a resolution is present.
+        attempts = []
+        if fields:
+            payload_fields = dict(base)
+            payload_fields["fields"] = fields
+            attempts.append(("fields", payload_fields))
+            if "resolution" in fields:
+                payload_update = dict(base)
+                payload_update["update"] = {"resolution": [{"set": fields["resolution"]}]}
+                attempts.append(("update/SET resolution", payload_update))
+        else:
+            attempts.append(("no fields", dict(base)))
+
+        if _try_transition_payloads(issue_key, headers, name, tid, attempts, label):
+            return name
+
+        # Fallback: if we never sent a resolution, the workflow may require one
+        # without advertising it. Retry with a resolution discovered from the
+        # instance, trying both the 'fields' and 'update'/SET forms.
+        if "resolution" not in fields:
+            resolution = _pick_resolution(headers)
+            if resolution is not None:
+                print(f"  [{issue_key}] {label} transition {name!r} failed; "
+                      f"retrying with resolution={resolution.get('name')!r}.")
+                fb_fields = dict(fields)
+                fb_fields["resolution"] = resolution
+                payload_fb_fields = dict(base)
+                payload_fb_fields["fields"] = fb_fields
+                payload_fb_update = dict(base)
+                payload_fb_update["update"] = {"resolution": [{"set": resolution}]}
+                fallback = [
+                    ("fields + resolution", payload_fb_fields),
+                    ("update/SET resolution", payload_fb_update),
+                ]
+                if _try_transition_payloads(issue_key, headers, name, tid,
+                                            fallback, label):
+                    return name
     if attempted:
         print(f"  [{issue_key}] WARNING: no {label} transition succeeded. "
               f"Attempted: {attempted}. Available: {list(name_to_transition.keys())}")

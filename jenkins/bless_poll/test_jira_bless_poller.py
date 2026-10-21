@@ -1066,11 +1066,16 @@ class TestTransitionIssue(unittest.TestCase):
                           side_effect=RuntimeError("nope")) as mock_post:
             result = jbp.transition_issue({}, "SES-1", ["resolve this issue"])
         self.assertIsNone(result)
-        # original attempt + resolution retry = 2 POSTs
-        self.assertEqual(mock_post.call_count, 2)
+        # original attempt + resolution retry in both 'fields' and 'update'
+        # forms = 3 POSTs
+        self.assertEqual(mock_post.call_count, 3)
 
     def test_resolution_fallback_skipped_when_already_sent(self):
-        """If metadata already supplied a resolution, don't do the fallback."""
+        """If metadata already supplied a resolution, don't fetch another one.
+
+        The 'fields' form is tried first, then the UI-mirroring 'update'/SET
+        form, but _pick_resolution is never called since a resolution is known.
+        """
         transitions = {"transitions": [{
             "name": "Resolve This Issue", "id": "801",
             "fields": {
@@ -1086,9 +1091,10 @@ class TestTransitionIssue(unittest.TestCase):
                           side_effect=RuntimeError("some other error")) as mock_post:
             result = jbp.transition_issue({}, "SES-1", ["resolve this issue"])
         self.assertIsNone(result)
-        # resolution already in fields, so no fallback fetch, only 1 POST
+        # resolution already in fields, so no fallback fetch; 'fields' + 'update'
+        # forms = 2 POSTs
         mock_pick.assert_not_called()
-        self.assertEqual(mock_post.call_count, 1)
+        self.assertEqual(mock_post.call_count, 2)
 
     def test_required_resolution_auto_filled(self):
         """A required resolution field should be auto-populated in the POST."""
@@ -1168,7 +1174,37 @@ class TestTransitionIssue(unittest.TestCase):
         self.assertEqual(payload["transition"]["id"], "801")
         self.assertEqual(payload["fields"]["resolution"], {"id": "10000"})
 
-    def test_optional_fields_not_included(self):
+    def test_update_set_form_tried_when_fields_form_rejected(self):
+        """If the 'fields' resolution form is rejected, retry with the
+        'update'/SET form that mirrors what the Jira web UI sends."""
+        transitions = {"transitions": [{
+            "id": "801", "name": "Resolve this issue",
+            "fields": {
+                "resolution": {
+                    "required": True,
+                    "allowedValues": [{"id": "10000", "name": "Done"}],
+                },
+            },
+        }]}
+        # 'fields' form rejected, 'update'/SET form accepted.
+        post_side_effects = [
+            RuntimeError("HTTP 400: Can't move. permission / required info"),
+            {},
+        ]
+        with patch.object(jbp, "_jira_get", return_value=transitions), \
+             patch.object(jbp, "_pick_resolution") as mock_pick, \
+             patch.object(jbp, "_jira_post", side_effect=post_side_effects) as mock_post:
+            result = jbp.transition_issue({}, "SES-4385",
+                                          jbp.RESOLVE_TRANSITION_NAMES, label="resolve")
+        self.assertEqual(result, "resolve this issue")
+        self.assertEqual(mock_post.call_count, 2)
+        mock_pick.assert_not_called()
+        # First POST uses the 'fields' form, second uses the 'update'/SET form.
+        first_payload  = mock_post.call_args_list[0][0][2]
+        second_payload = mock_post.call_args_list[1][0][2]
+        self.assertEqual(first_payload["fields"]["resolution"], {"id": "10000"})
+        self.assertEqual(second_payload["update"],
+                         {"resolution": [{"set": {"id": "10000"}}]})
         """Non-required fields should not be added to the payload."""
         transitions = {"transitions": [{
             "name": "Done", "id": "41",
