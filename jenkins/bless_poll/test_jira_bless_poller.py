@@ -944,22 +944,28 @@ class TestDumpTransitions(unittest.TestCase):
     """Tests for the --dump-transitions diagnostic mode."""
 
     def test_dump_fetches_transitions_and_resolutions(self):
+        issue       = {"fields": {"status": {"name": "Waiting for support"},
+                                  "resolution": None}}
         transitions = {"transitions": [{"name": "Done", "id": "41"}]}
         resolutions = [{"id": "1", "name": "Done"}]
-        get_returns = [transitions, resolutions]
+        get_returns = [issue, transitions, resolutions]
         with patch.object(jbp, "_jira_get", side_effect=get_returns) as mock_get:
             success = jbp.dump_transitions("e@e.com", "tok", "ses-42")
         self.assertTrue(success)
-        # First GET is transitions with expand, second is resolutions
-        first_call = mock_get.call_args_list[0]
-        self.assertIn("SES-42", first_call[0][0])
-        self.assertEqual(first_call[1].get("params"), {"expand": "transitions.fields"})
-        self.assertIn("/resolution", mock_get.call_args_list[1][0][0])
+        # First GET is the issue status, second is transitions, third resolutions
+        status_call = mock_get.call_args_list[0]
+        self.assertIn("SES-42", status_call[0][0])
+        trans_call = mock_get.call_args_list[1]
+        self.assertIn("/transitions", trans_call[0][0])
+        self.assertEqual(trans_call[1].get("params"), {"expand": "transitions.fields"})
+        self.assertIn("/resolution", mock_get.call_args_list[2][0][0])
 
     def test_dump_handles_resolution_fetch_failure(self):
+        issue       = {"fields": {"status": {"name": "Waiting for support"},
+                                  "resolution": None}}
         transitions = {"transitions": []}
         with patch.object(jbp, "_jira_get",
-                          side_effect=[transitions, RuntimeError("boom")]):
+                          side_effect=[issue, transitions, RuntimeError("boom")]):
             success = jbp.dump_transitions("e@e.com", "tok", "SES-42")
         self.assertTrue(success)
 

@@ -387,6 +387,8 @@ def transition_issue(headers, issue_key, transition_names, label="transition"):
                 payload["fields"] = fields
 
             try:
+                print(f"  [{issue_key}] Attempting {label} transition {name!r} "
+                      f"(id={tid}) with payload: {json.dumps(payload)}")
                 _jira_post(f"/rest/api/3/issue/{issue_key}/transitions", headers, payload)
                 return name
             except RuntimeError as exc:
@@ -629,6 +631,18 @@ def dump_transitions(email, token, ticket_id):
     ticket_id = ticket_id.upper()
 
     print(f"Dumping transition metadata for {ticket_id} ...")
+
+    # Show current status so we know which workflow node we're transitioning from.
+    try:
+        issue = _jira_get(f"/rest/api/3/issue/{ticket_id}", headers,
+                          params={"fields": "status,resolution"})
+        status = issue.get("fields", {}).get("status", {}).get("name")
+        resolution = issue.get("fields", {}).get("resolution")
+        print(f"  Current status    : {status!r}")
+        print(f"  Current resolution: {resolution!r}")
+    except RuntimeError as exc:
+        print(f"  WARNING: could not fetch issue status: {exc}")
+
     data = _jira_get(f"/rest/api/3/issue/{ticket_id}/transitions", headers,
                      params={"expand": "transitions.fields"})
     print(json.dumps(data, indent=2))
