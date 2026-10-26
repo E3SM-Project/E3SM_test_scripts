@@ -54,3 +54,18 @@ $RUNSCRIPT -O master $RUNSCRIPT_FLAGS --baseline-compare \
 
 This invokes E3SM's `jenkins_script` with the default test suite for chrysalis,
 comparing results against the `master` baseline.
+
+## Surviving network drops for long jobs
+
+Very long running jobs can be killed if the network/SSH connection to the Jenkins
+agent drops and the driver process receives `SIGHUP`. To protect such a job, run
+it through `util/nohup_wrapper.sh`, which runs the command under `nohup` (so it
+ignores `SIGHUP`) while still streaming live output to the Jenkins console and
+propagating the command's real exit code:
+
+```bash
+$SCRIPTROOT/util/nohup_wrapper.sh $RUNSCRIPT -t <suite> --compiler=<compiler> ...
+```
+
+Output is also written to a timestamped log file (override the path with
+`NOHUP_WRAPPER_LOG`). `jenkins/pm-gpu_eamxx_extra_large.sh` uses this wrapper.

@@ -71,6 +71,24 @@ Each `util/${machine}_setup.sh` is machine-specific:
 - Sets `$RUNSCRIPT_FLAGS` (e.g., `--scratch-root`)
 - Sets `$PROJECT` if required by the batch system
 
+## Surviving Network Drops (`util/nohup_wrapper.sh`)
+
+Very long running jobs can be killed if the network/SSH connection to the Jenkins
+agent drops and the driver process receives `SIGHUP`. `util/nohup_wrapper.sh`
+wraps a command so it runs under `nohup` (ignores `SIGHUP`) while still streaming
+live output to the console and propagating the real exit code.
+
+Opt in per script by prepending the wrapper to the `$RUNSCRIPT` invocation:
+
+```bash
+$SCRIPTROOT/util/nohup_wrapper.sh $RUNSCRIPT -t <suite> --compiler=<compiler> ...
+```
+
+Output is also captured to a timestamped log file (override with
+`NOHUP_WRAPPER_LOG`). `SIGTERM`/`SIGINT` are forwarded to the wrapped command so
+Jenkins aborts still stop the real work. Currently used by
+`jenkins/pm-gpu_eamxx_extra_large.sh`.
+
 ## Alternative Test Runners
 
 - `util/run_cime_tests.sh` - Runs CIME Python unit tests via cmake/ctest against CDash
