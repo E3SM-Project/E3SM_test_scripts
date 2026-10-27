@@ -394,6 +394,15 @@ def transition_issue(headers, issue_key, transition_names, label="transition"):
     conditions/validators), fall through to the next matching name rather than
     raising. Transient failures (5xx, network errors) are retried inside _http.
     """
+    # Fetch both current status and available transitions to diagnose state-dependent failures.
+    try:
+        issue = _jira_get(f"/rest/api/3/issue/{issue_key}", headers,
+                         params={"fields": "status"})
+        current_status = issue.get("fields", {}).get("status", {}).get("name", "unknown")
+        print(f"  [{issue_key}] Current status: {current_status!r}")
+    except RuntimeError as exc:
+        print(f"  [{issue_key}] WARNING: could not fetch current status: {exc}")
+
     data = _jira_get(f"/rest/api/3/issue/{issue_key}/transitions", headers,
                      params={"expand": "transitions.fields"})
     name_to_transition = {t["name"].lower(): t for t in data.get("transitions", [])}
