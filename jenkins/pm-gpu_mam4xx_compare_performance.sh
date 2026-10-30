@@ -41,11 +41,8 @@ main() {
     #---------------------------------------------------------------
 
     #TODO: 
-    pwd
-    cd /pscratch/sd/e/e3smtest/jenkins/workspace/ACME_Perlmutter_mam4xx_compare_performance/E3SM_test_scripts/jenkins
-    pwd
+    cd E3SM_test_scripts/jenkins
     ./mam4xx_compare_performance.sh -r $resolution -c $compiler -t $simulation_length -m $mach -p $code_root -f $hard_reset_E3SM -d $data_dest -s $share_dest -u $share_url
-    #/global/cfs/projectdirs/e3sm/litzingj/E3SM_test_scripts/jenkins/mam4xx_compare_performance.sh -r $resolution -c $compiler -t $simulation_length -m $mach -p $code_root -f $hard_reset_E3SM -d $data_dest -s $share_dest -u $share_url
 
 }
 
