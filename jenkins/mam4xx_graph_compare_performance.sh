@@ -81,12 +81,12 @@ main() {
         # grep -q returns 0 (true) if found, 1 (false) if not
         if ! grep -q "^${formatted_date}," "$eamxx_csv"; then
        	    echo "NEW DATE FOUND: $dir_name (Date: $formatted_date)"
-            mam4xx_dir=${testname}.${resolution}.${compset_mam4xx}.${mach}_${compiler}.${test_mod}.master_${date_str}${timestamp}
-            eamxx_dir=${testname}.${resolution}.${compset_eamxx}.${mach}_${compiler}.${test_mod}.master_${date_str}${timestamp}
+            mam4xx_dir=${testname}.${resolution}.${compset_mam4xx}.${mach}_${compiler}.${test_mod}.master_${raw_date}${timestamp}
+            eamxx_dir=${testname}.${resolution}.${compset_eamxx}.${mach}_${compiler}.${test_mod}.master_${raw_date}${timestamp}
 	    check_for_run_completion $parent_dir/perf_test/$dir_name/$mam4xx_dir
 	    check_for_run_completion $parent_dir/perf_test/$dir_name/$eamxx_dir
 
-	    scrape_data "$parent_dir/perf_test/$dir_name" $mam4xx_dir $eamxx_dir $data_dest $resolution
+	    scrape_data "$parent_dir/perf_test/$dir_name" $mam4xx_dir $eamxx_dir $data_dest $resolution $formatted_date
         fi
     done
 
@@ -123,6 +123,7 @@ scrape_data() {
     eamxx_dir=$3
     data_dest=$4
     resolution=$5
+    formatted_date=$6
 
     #Grab MAM4xx timing data
     cd $dir_name/$mam4xx_dir/timing
@@ -140,9 +141,8 @@ scrape_data() {
 
     #save data in a csv file
     cd $data_dest
-    DATE=$(date +'%Y-%m-%d')
-    echo "${DATE},${mam4xx_throughput},${mam4xx_cost}" >> mam4xx_performance_${resolution}.csv
-    echo "${DATE},${eamxx_throughput},${eamxx_cost}" >> eamxx_performance_${resolution}.csv
+    echo "${formatted_date},${mam4xx_throughput},${mam4xx_cost}" >> mam4xx_performance_${resolution}.csv
+    echo "${formatted_date},${eamxx_throughput},${eamxx_cost}" >> eamxx_performance_${resolution}.csv
     echo "data saved at $(pwd)"
     cat mam4xx_performance_${resolution}.csv
     cat eamxx_performance_${resolution}.csv
