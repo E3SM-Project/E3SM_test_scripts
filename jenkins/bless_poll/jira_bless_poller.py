@@ -569,7 +569,6 @@ def build_bless_cmd(suite, cases, action, root=None, bless_dry_run=False, exclud
         cmd.append("--dry-run")
     return cmd
 
-_LOGGING_CONFIGURED = False
 ###############################################################################
 def _invoke_bless(suite, cases, action, root, indent, bless_dry_run=False, excludes=None):
 ###############################################################################
@@ -589,11 +588,8 @@ def _invoke_bless(suite, cases, action, root, indent, bless_dry_run=False, exclu
     if _setup_cime_path():
         try:
             from CIME.bless_test_results import bless_test_results as cime_bless
-            global _LOGGING_CONFIGURED
-            if not _LOGGING_CONFIGURED:
-                from CIME.utils import CIMEError, configure_logging
-                configure_logging(verbose=False, debug=False, silent=False)
-                _LOGGING_CONFIGURED = True
+            from CIME.utils import CIMEError, configure_logging
+            configure_logging(verbose=False, debug=False, silent=False)
             print(f"{indent}CIME import succeeded, invoking as library!")
             print(f"{indent}=============== BLESS_TEST_RESULT OUTPUT BEGINS HERE ==================")
             # Capture stdout/stderr from CIME to ensure all output is printed.
@@ -621,13 +617,13 @@ def _invoke_bless(suite, cases, action, root, indent, bless_dry_run=False, exclu
             finally:
                 sys.stdout = old_stdout
                 sys.stderr = old_stderr
-            
+
             # Print captured output
             if cime_output:
                 print(cime_output, end="")
             if cime_errors:
                 print(cime_errors, end="")
-            
+
             print(f"{indent}=============== BLESS_TEST_RESULT OUTPUT ENDS HERE ==================")
             return success
         except ImportError:
