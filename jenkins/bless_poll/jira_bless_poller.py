@@ -596,19 +596,38 @@ def _invoke_bless(suite, cases, action, root, indent, bless_dry_run=False, exclu
                 _LOGGING_CONFIGURED = True
             print(f"{indent}CIME import succeeded, invoking as library!")
             print(f"{indent}=============== BLESS_TEST_RESULT OUTPUT BEGINS HERE ==================")
-            success = cime_bless(
-                baseline_name=None,
-                baseline_root=None,
-                test_root=root,
-                compiler=compiler,
-                test_id=test_id,
-                namelists_only=(action == "nmls"),
-                hist_only=(action == "hists"),
-                force=True,
-                bless_tests=None if cases == ["*"] else cases,
-                exclude=excludes,
-                dry_run=bless_dry_run,
-            )
+            # Capture stdout/stderr from CIME to ensure all output is printed.
+            # CIME's logger output may not go to stdout by default, so we redirect it.
+            old_stdout = sys.stdout
+            old_stderr = sys.stderr
+            try:
+                sys.stdout = io.StringIO()
+                sys.stderr = io.StringIO()
+                success = cime_bless(
+                    baseline_name=None,
+                    baseline_root=None,
+                    test_root=root,
+                    compiler=compiler,
+                    test_id=test_id,
+                    namelists_only=(action == "nmls"),
+                    hist_only=(action == "hists"),
+                    force=True,
+                    bless_tests=None if cases == ["*"] else cases,
+                    exclude=excludes,
+                    dry_run=bless_dry_run,
+                )
+                cime_output = sys.stdout.getvalue()
+                cime_errors = sys.stderr.getvalue()
+            finally:
+                sys.stdout = old_stdout
+                sys.stderr = old_stderr
+            
+            # Print captured output
+            if cime_output:
+                print(cime_output, end="")
+            if cime_errors:
+                print(cime_errors, end="")
+            
             print(f"{indent}=============== BLESS_TEST_RESULT OUTPUT ENDS HERE ==================")
             return success
         except ImportError:
