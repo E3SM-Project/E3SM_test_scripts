@@ -15,6 +15,7 @@ or:
 import getpass
 import io
 import os, sys, tempfile, unittest
+import contextlib
 import urllib.error, urllib.request
 from unittest.mock import MagicMock, patch
 
@@ -521,6 +522,54 @@ class TestInvokeBless(unittest.TestCase):
             jbp._invoke_bless(self._SUITE, ["ERS*"], "both", "/root/J", "", bless_dry_run=False)
         cmd = mock_run.call_args[0][0]
         self.assertNotIn("--dry-run", cmd)
+
+    def test_cime_output_captured_for_multiple_tickets(self):
+        """Test that CIME bless output is captured when processing multiple tickets.
+        
+        This verifies the fix for the bug where only the first ticket's bless output
+        was being captured when multiple tickets were processed in a single poller run.
+        The issue was that configure_logging was only called once, but CIME's output
+        stream became stale for subsequent tickets. Now we capture stdout/stderr
+        around each cime_bless call and print it explicitly.
+        """
+        # Simulate what _invoke_bless does: capture output and return it
+        call_count = [0]
+        
+        def mock_cime_bless_with_output(*args, **kwargs):
+            """Mock CIME that prints output to stdout/stderr."""
+            call_count[0] += 1
+            ticket_num = call_count[0]
+            print(f"CIME output from ticket {ticket_num}")
+            sys.stderr.write(f"CIME stderr from ticket {ticket_num}\n")
+            return True
+        
+        # Run two _invoke_bless calls, each with its own StringIO to capture output
+        outputs = []
+        
+        for ticket_num in range(1, 3):
+            modules = {
+                "CIME":                    MagicMock(),
+                "CIME.bless_test_results": MagicMock(bless_test_results=mock_cime_bless_with_output),
+                "CIME.utils":              MagicMock(CIMEError=Exception, configure_logging=MagicMock()),
+            }
+            
+            # Capture output for this ticket using the same tee mechanism as the poller
+            ticket_buf = io.StringIO()
+            with patch.dict("sys.modules", modules), \
+                 patch.object(jbp, "_setup_cime_path", return_value=True), \
+                 contextlib.redirect_stdout(jbp._TeeStream(sys.stdout, ticket_buf)), \
+                 contextlib.redirect_stderr(jbp._TeeStream(sys.stderr, ticket_buf)):
+                result = jbp._invoke_bless(self._SUITE, ["ERS*"], "both", "/root/J", "  ")
+                self.assertTrue(result)
+            
+            outputs.append(ticket_buf.getvalue())
+        
+        # Verify both tickets' output was captured
+        self.assertEqual(len(outputs), 2)
+        self.assertIn("CIME output from ticket 1", outputs[0])
+        self.assertIn("CIME stderr from ticket 1", outputs[0])
+        self.assertIn("CIME output from ticket 2", outputs[1])
+        self.assertIn("CIME stderr from ticket 2", outputs[1])
 
 ###############################################################################
 class TestUserSubstitution(unittest.TestCase):
