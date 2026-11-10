@@ -63,7 +63,7 @@ main() {
 
     # 1. Loop through the directories in the data folder
     # We use find to get only directories and avoid issues with spaces/wildcards
-    find "$data_dir" -maxdepth 1 -type d -name "test_*" | while read -r dir_path; do
+    ls -1tr "$data_dir" | while read -r dir_path; do
     
         # Get just the folder name (e.g., test_10-27-2026__00_24_12)
         dir_name=$(basename "$dir_path")
@@ -84,9 +84,15 @@ main() {
             mam4xx_dir=${testname}.${resolution}.${compset_mam4xx}.${mach}_${compiler}.${test_mod}.master_${raw_date}${timestamp}
             eamxx_dir=${testname}.${resolution}.${compset_eamxx}.${mach}_${compiler}.${test_mod}.master_${raw_date}${timestamp}
 	    check_for_run_completion $parent_dir/perf_test/$dir_name/$mam4xx_dir
+	    if [ $? -eq 1 ]; then
+		continue;
+	    fi
 	    check_for_run_completion $parent_dir/perf_test/$dir_name/$eamxx_dir
+	    if [ $? -eq 1 ]; then
+		continue;
+	    fi
 
-	    scrape_data "$parent_dir/perf_test/$dir_name" $mam4xx_dir $eamxx_dir $data_dest $resolution $formatted_date
+	   scrape_data "$parent_dir/perf_test/$dir_name" $mam4xx_dir $eamxx_dir $data_dest $resolution $formatted_date
         fi
     done
 
@@ -153,9 +159,10 @@ scrape_data() {
 #check if the directory exists otherwise exit
 check_if_dir_exists () {
     if [ ! -d "$1" ]; then
-        echo "$1 directory doesnt exists. Please ensure directory is there to procced"
-        exit 1
+        echo "$1 directory doesn't exist. Please ensure directory is there to procced"
+        return 1
     fi
+    return 0
 }
 
 check_for_run_completion () {
@@ -163,11 +170,16 @@ check_for_run_completion () {
 
     echo "Checking if test run complete in $case_dir..."
     check_if_dir_exists $case_dir
+    if [ $? -eq 1 ]; then
+	return 1
+    fi
     cd "$case_dir" || { echo "Failed to enter $case_dir"; return 1; }
     check_if_dir_exists "timing"
+    if [ $? -eq 1 ]; then
+	return 1
+    fi
     echo "Timing dir exists, can proceed with collecting timing data"
-
-    return 0 
+    return 0
 }
 
 #-----------------------------
