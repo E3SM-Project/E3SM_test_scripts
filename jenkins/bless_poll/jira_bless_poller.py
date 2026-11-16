@@ -47,6 +47,10 @@ INACTIVE_TRANSITION_NAMES = ["respond to customer", "waiting for customer", "pen
 # Prefer CIME-derived CIME_OUTPUT_ROOT/J when possible.
 MACHINE_ROOTS = {
     "mappy": "/ascldap/users/e3sm-jenkins/acme/scratch/J",
+    "pm-cpu": "/pscratch/sd/e/e3smtest/e3sm_scratch/pm-cpu/J",
+    "pm-gpu": "/pscratch/sd/e/e3smtest/e3sm_scratch/pm-gpu/J",
+    "chrysalis": "/lcrc/group/e3sm/e3smtest/scratch/chrys",
+    "improv": "/lcrc/group/e3sm/e3smtest/scratch/improv",
 }
 
 ###############################################################################
