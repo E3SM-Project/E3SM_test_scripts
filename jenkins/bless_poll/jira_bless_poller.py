@@ -49,8 +49,8 @@ MACHINE_ROOTS = {
     "mappy": "/ascldap/users/e3sm-jenkins/acme/scratch/J",
     "pm-cpu": "/pscratch/sd/e/e3smtest/e3sm_scratch/pm-cpu/J",
     "pm-gpu": "/pscratch/sd/e/e3smtest/e3sm_scratch/pm-gpu/J",
-    "chrysalis": "/lcrc/group/e3sm2/e3smtest/scratch/chrys",
-    "improv": "/lcrc/group/e3sm/e3smtest/scratch/improv",
+    "chrysalis": "/lcrc/group/e3sm2/e3smtest/scratch/chrys/J",
+    "improv": "/lcrc/group/e3sm/e3smtest/scratch/improv/J",
 }
 
 ###############################################################################
