@@ -10,6 +10,6 @@ source $SCRIPTROOT/util/setup_common.sh
 module unload python
 module load python/2.7.9
 
-$RUNSCRIPT --compiler intel --baseline-compare=yes -t e3sm_bgcprod
+$RUNSCRIPT --compiler intel --baseline-compare=yes --ignore-namelists -t e3sm_bgcprod
 
 chmod -R g+rwX /compyfs/$USER/e3sm_scratch

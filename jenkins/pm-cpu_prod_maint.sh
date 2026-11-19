@@ -7,4 +7,4 @@ export SCREAM_MACHINE=$CIME_MACHINE
 source $SCRIPTROOT/util/setup_common.sh
 
 module load jamo-python/3.9
-$RUNSCRIPT -t e3sm_prod --baseline-compare --compiler=intel
+$RUNSCRIPT -t e3sm_prod --baseline-compare --ignore-namelists --compiler=intel

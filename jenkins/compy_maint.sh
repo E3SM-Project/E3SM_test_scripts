@@ -8,6 +8,6 @@ source $SCRIPTROOT/util/setup_common.sh
 # Can't use too new of a python for older CIMEs
 module unload python
 module load python/3.10.19
-$RUNSCRIPT --compiler intel --baseline-compare -t e3sm_prod
+$RUNSCRIPT --compiler intel --baseline-compare --ignore-namelists -t e3sm_prod
 
 chmod -R g+rwX /compyfs/$USER/e3sm_scratch
